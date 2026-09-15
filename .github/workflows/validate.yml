@@ -1,0 +1,37 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  schedule:
+    - cron: '17 3 * * 1'   # weekly: official documentation URL liveness
+  workflow_dispatch:
+
+jobs:
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: SKILL.md frontmatter
+        run: python3 scripts/validate/check-frontmatter.py
+      - name: Internal links resolve
+        run: scripts/validate/check-links.sh
+      - name: Version in sync
+        run: scripts/validate/check-version-sync.sh
+      - name: AGENTS.md / GEMINI.md parity
+        run: scripts/validate/check-agents-parity.sh
+      - name: Public content only
+        run: scripts/validate/check-public-only.sh
+      - name: Scripts compile
+        run: |
+          python3 -m py_compile scripts/gputw_client.py
+          for f in scripts/examples/*.sh scripts/validate/*.sh; do bash -n "$f"; done
+
+  doc-urls:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Official documentation URLs reachable
+        run: scripts/validate/check-doc-urls.sh
