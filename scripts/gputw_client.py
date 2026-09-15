@@ -41,10 +41,13 @@ TERMINAL = {"FAILED", "INSUFFICIENT_FUNDS", "STOPPED", "TERMINATED"}
 
 
 class GputwError(RuntimeError):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, enveloped: bool = True):
         super().__init__(f"HTTP {status}: {message}")
         self.status = status
         self.message = message
+        # False when the response was not the GPUtw JSON envelope, i.e. the request never
+        # reached the API (typically Cloudflare blocking a client signature with 403/1010).
+        self.enveloped = enveloped
 
 
 class Client:
@@ -80,7 +83,7 @@ class Client:
             env = json.loads(text)
         except ValueError:
             # Not the GPUtw envelope: the request never reached the API (e.g. Cloudflare 1010).
-            raise GputwError(status, text[:300])
+            raise GputwError(status, text[:300], enveloped=False)
         if status >= 400 or not env.get("success", False):
             raise GputwError(status, env.get("error") or text[:300])
         return env["data"]
@@ -313,10 +316,18 @@ def main(argv=None):
                 print(f"{f['type']:<9} {str(f.get('size') or ''):>14}  {f['name']}")
     except GputwError as e:
         print(f"error: {e}", file=sys.stderr)
-        if e.status == 403 and "scope" in (e.message or ""):
-            print("hint: update the key's scopes in Dashboard -> API Keys", file=sys.stderr)
-        if e.status == 403 and not (e.message or "").startswith(("API key", "This endpoint")):
-            print("hint: non-envelope 403 usually means a missing User-Agent (Cloudflare 1010)", file=sys.stderr)
+        msg = e.message or ""
+        if not e.enveloped:
+            print("hint: the response was not the GPUtw envelope, so the request never reached the API. "
+                  "Check GPUTW_API (should be https://api.gputw.ai/api) and the User-Agent header - "
+                  "Cloudflare blocks some client signatures with 403 / error code 1010.", file=sys.stderr)
+        elif "missing required scope" in msg:
+            print("hint: update the key's scopes in Dashboard -> API Keys, or issue a new key", file=sys.stderr)
+        elif "not available to API keys" in msg:
+            print("hint: this route is browser-session only - do it in the dashboard", file=sys.stderr)
+        elif e.status == 402:
+            print("hint: top up in the dashboard - deploying needs one hour of credit for every running instance",
+                  file=sys.stderr)
         sys.exit(1)
 
 
