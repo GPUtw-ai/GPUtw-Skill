@@ -4,8 +4,8 @@
   "version": "1.1.0-beta.1",
   "description": "Official GPUtw skill and MCP server — deploy and manage GPU instances on gputw.ai, move models into /vault, and debug the API, in natural language.",
   "author": {
-    "name": "GPUtw.ai",
-    "url": "https://gputw.ai"
+    "name": "Luke Lin",
+    "url": "https://github.com/luke2023"
   },
   "homepage": "https://github.com/GPUtw-ai/GPUtw-Skill",
   "repository": "https://github.com/GPUtw-ai/GPUtw-Skill",
