@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: GPUtw 官方文件
+    url: https://gputw.ai/zh-TW/docs
+    about: API 規格、限制與費用以官方文件為準
+  - name: 帳號、帳務或機器問題
+    url: https://gputw.ai/dashboard
+    about: 這裡只處理 skill 內容；帳號與部署問題請用控制台的支援管道
