@@ -1,0 +1,19 @@
+{
+  "name": "gputw",
+  "description": "Official GPUtw agent skill and MCP server for the GPUtw GPU cloud (gputw.ai).",
+  "version": "1.1.0-beta.1",
+  "owner": {
+    "name": "GPUtw.ai",
+    "url": "https://gputw.ai"
+  },
+  "plugins": [
+    {
+      "name": "gputw",
+      "displayName": "GPUtw (Official)",
+      "description": "Deploy and manage GPU instances, move models into /vault, and debug the GPUtw API in natural language — a knowledge skill plus 18 MCP tools.",
+      "source": "./",
+      "category": "deployment",
+      "keywords": ["gputw", "gpu", "cloud", "taiwan", "mcp"]
+    }
+  ]
+}

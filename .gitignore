@@ -4,3 +4,11 @@ __pycache__/
 .env
 *.key
 part-*
+
+# Node
+node_modules/
+*.tsbuildinfo
+.tsup/
+
+# mcp/dist/stdio.mjs is intentionally committed: it is a single bundled file, so the plugin
+# runs from a git clone with plain `node` and no npm install. CI verifies it matches src/.

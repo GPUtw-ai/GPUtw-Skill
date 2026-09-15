@@ -23,10 +23,56 @@ jobs:
         run: scripts/validate/check-agents-parity.sh
       - name: Public content only
         run: scripts/validate/check-public-only.sh
-      - name: Scripts compile
+      - name: Manifests are valid JSON
+        run: |
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json \
+                   .agents/plugins/marketplace.json gemini-extension.json mcp/package.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f" && echo "ok $f"
+          done
+      - name: Shell and Python scripts parse
         run: |
           python3 -m py_compile scripts/gputw_client.py
           for f in scripts/examples/*.sh scripts/validate/*.sh; do bash -n "$f"; done
+
+  mcp:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mcp/package-lock.json
+      - run: npm ci
+      - name: Type-check
+        run: npm run type-check
+      - name: Unit tests (offline, no API key)
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Committed bundle matches src/
+        # mcp/dist/stdio.mjs is committed so the plugin runs from a git clone with plain node.
+        # That only stays trustworthy if it is provably the build of the committed source.
+        run: |
+          if ! git diff --quiet -- dist/stdio.mjs; then
+            echo "::error::mcp/dist/stdio.mjs is stale - run 'npm run build' in mcp/ and commit the result"
+            git diff --stat -- dist/stdio.mjs
+            exit 1
+          fi
+          echo "ok: committed bundle is the build of committed source"
+      - name: Server starts and answers an MCP handshake
+        run: |
+          printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            | node dist/stdio.mjs | tee /tmp/handshake.json
+          python3 - <<'PY'
+          import json
+          r = json.load(open('/tmp/handshake.json'))['result']
+          assert r['serverInfo']['name'] == 'gputw', r
+          print('ok: serverInfo', r['serverInfo'])
+          PY
 
   doc-urls:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

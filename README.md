@@ -1,6 +1,6 @@
 # GPUtw Skill
 
-> **V1.0.0** ｜ GPUtw（https://gputw.ai）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。
+> **V1.1.0-beta.1** ｜ GPUtw（https://gputw.ai）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。**現在含官方 MCP 伺服器（18 個工具）**。
 
 **English:** An [Agent Skill](https://agentskills.io) for the GPUtw GPU cloud (Taiwan). Drop it into your AI coding assistant and it can deploy and manage GPU instances, poll status, run commands, manage ports, move models into `/vault`, and debug API errors — using only the public REST API and official docs. Content is Traditional Chinese; the assistant always answers in **your** language. See [Install](#安裝) below.
 
@@ -11,6 +11,7 @@
 - [這是什麼](#這是什麼)
 - [涵蓋範圍](#涵蓋範圍)
 - [安裝](#安裝)
+- [MCP 伺服器](#mcp-伺服器)
 - [驗證](#驗證)
 - [使用範例](#使用範例)
 - [目錄結構](#目錄結構)
@@ -38,6 +39,7 @@
 | 帳務與團隊 | 一小時餘額規則、`402`、團隊成員限制、通知、工單 |
 | 除錯 | 狀態碼 → 原因 → 動作、Cloudflare 403 / 1010 與 `User-Agent`、部署卡住、crash loop、上傳段錯誤 |
 | 程式語言 | Python、Node.js / TypeScript、bash / curl 規範與可執行範例 |
+| **MCP** | 官方 MCP 伺服器：18 個結構化工具（目錄、執行個體生命週期、狀態/用量/日誌、Vault 上傳與模型下載），read/write/destructive 標註，錯誤自動翻成可行動訊息 |
 
 ## 安裝
 
@@ -51,7 +53,16 @@ git clone https://github.com/GPUtw-ai/GPUtw-Skill.git ~/.claude/skills/gputw
 git clone https://github.com/GPUtw-ai/GPUtw-Skill.git .claude/skills/gputw
 ```
 
-（選用）斜線指令：`cp ~/.claude/skills/gputw/commands/gputw-*.md ~/.claude/commands/` → `/gputw-deploy`、`/gputw-monitor`、`/gputw-vault`、`/gputw-debug`。
+（選用）斜線指令：`cp ~/.claude/skills/gputw/commands/gputw-*.md ~/.claude/commands/`
+
+| 指令 | 用途 |
+|---|---|
+| `/gputw-deploy` | 選 GPU、選機器、選範本或自訂映像、部署並等到 `RUNNING` |
+| `/gputw-monitor` | 讀用量、事件、日誌、執行指令、閒置自動關機 |
+| `/gputw-vault` | 上傳（分段 / 傳輸主機）、URL / Hugging Face 下載、列表、ComfyUI 模型擺放 |
+| `/gputw-debug` | 401 / 403 / 402 / 409 / 429 / Cloudflare 403、部署卡住、crash loop |
+
+用外掛安裝（見下）時這些指令已包含在內，不需另外複製。
 
 ### Claude.ai / Claude API（Skills 上傳）
 
@@ -66,6 +77,31 @@ git clone https://github.com/GPUtw-ai/GPUtw-Skill.git .claude/skills/gputw
 ```bash
 cd ~/.claude/skills/gputw && git tag -l && git checkout v1.0.0
 ```
+
+## MCP 伺服器
+
+除了知識，本 repo 也提供官方 **MCP 伺服器**（`mcp/`，18 個工具），讓助理直接以型別化的工具呼叫操作 GPUtw，不必組 curl。
+
+```bash
+# 外掛（建議）— 一次拿到 Skill + MCP 工具，金鑰存在安全儲存區
+/plugin marketplace add GPUtw-ai/GPUtw-Skill
+/plugin install gputw@gputw
+
+# 只要 MCP（Claude Code）
+claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mcp-server@latest
+```
+
+工具分為四組：**目錄**（`list-gpus`、`list-available-nodes`、`list-templates`、`get-deploy-options`）、
+**執行個體**（`create-instance`、`stop-instance`、`delete-instance`、`restart-instance`）、
+**即時狀態**（`get-instance-status`、`get-instance-resources`、`get-instance-logs`、`get-instance-events`）、
+**Vault**（`list-vault`、`get-vault-stats`、`upload-to-vault`、`download-model-to-vault`、`list-vault-downloads`）。
+`exec-in-instance` 是容器內的 root shell，**預設不註冊**，要設 `GPUTW_MCP_ALLOW_EXEC=1` 才會出現。
+
+安裝細節、環境變數、連線驗證、工具 vs curl 的取捨：[`guides/12-mcp.md`](./guides/12-mcp.md)。
+
+> ℹ️ MCP 伺服器目前是 **beta**（`1.1.0-beta.1`）。Skill 內容本身已穩定。
+
+> ⚠️ **兩種安裝方式請只選一種。** 外掛與 `~/.claude/skills/gputw/` 的手動安裝同名，Claude Code 會以外掛為準、略過手動那份（`claude plugin list` 會提示）。要並存請改掉其中一份的 `name`。
 
 ## 驗證
 
@@ -102,6 +138,8 @@ guides/                  12 份整合指南 + lang-standards/（python, nodejs, 
 references/              endpoints.md（唯一可引用的端點清單）、docs-site.md（官方文件 URL）
 scripts/                 gputw_client.py（stdlib 客戶端，可讀可跑）、examples/*.sh
 commands/                Claude Code 斜線指令（選用）
+mcp/                     官方 MCP 伺服器（TypeScript，@gputw/mcp-server）
+.claude-plugin/          外掛與 marketplace 資訊（/plugin marketplace add）
 .github/workflows/       CI：frontmatter、連結、版本同步、AGENTS↔GEMINI 一致性、公開內容檢查、官方 URL 存活
 ```
 

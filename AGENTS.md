@@ -1,6 +1,6 @@
 # GPUtw API 整合助手 — OpenAI Codex CLI
 
-> **V1.0.0** ｜ 適用 OpenAI Codex CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
+> **V1.1.0-beta.1** ｜ 適用 OpenAI Codex CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
 
 ## 啟動指示
 
@@ -13,6 +13,12 @@
 > ⚠️ **語言強制規則**：無論文件語言為何，一律用使用者的提問語言全文回覆（英文問 → 英文答；中文問 → 中文答）。API 欄位、端點、狀態值與程式碼識別符不翻譯。
 
 ## 決策樹
+
+**MCP 工具**
+- 本工作階段有 gputw MCP 工具（`list-gpus`、`create-instance`、`get-instance-status`…）→ 直接呼叫，決策仍照本檔決策樹
+- 沒有 → 照 `guides/00`–`11` 產生 curl / Python；安裝方式見 `guides/12-mcp.md`
+- v1 工具未收錄：連接埠/exposures、API 金鑰管理、帳務、團隊、通知、預約 → 這些仍用 curl
+- 輪詢用 `get-instance-status`；`delete-instance` 是 destructive；`exec-in-instance` 預設未註冊（需 `GPUTW_MCP_ALLOW_EXEC=1`）
 
 **部署**
 - 選型號：`GET /gpus/active`（公開）→ `id` 當 `catalogId`；`liveRentablePrice == null` / `demandStatus == 售罄` 表示沒空機
@@ -61,6 +67,7 @@
 14. `/workspace` 不持久；要保留的放 `/vault`
 15. 只描述公開 API 契約與官方文件內容，不描述內部架構
 16. 生成的程式碼加註來源 URL 與日期，並列出所需 scopes / preset
+17. MCP 工具不改變任何規則；工具清單沒有 `exec-in-instance` 是預設關閉，不是故障
 
 ## 快速參考
 

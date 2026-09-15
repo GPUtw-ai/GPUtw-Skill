@@ -1,0 +1,52 @@
+{
+  "name": "gputw",
+  "displayName": "GPUtw (Official)",
+  "version": "1.1.0-beta.1",
+  "description": "Official GPUtw skill and MCP server — deploy and manage GPU instances on gputw.ai, move models into /vault, and debug the API, in natural language.",
+  "author": {
+    "name": "GPUtw.ai",
+    "url": "https://gputw.ai"
+  },
+  "homepage": "https://github.com/GPUtw-ai/GPUtw-Skill",
+  "repository": "https://github.com/GPUtw-ai/GPUtw-Skill",
+  "license": "MIT",
+  "keywords": [
+    "gputw",
+    "gpu",
+    "cloud",
+    "taiwan",
+    "mcp",
+    "vault",
+    "comfyui"
+  ],
+  "skills": [
+    "./"
+  ],
+  "mcpServers": {
+    "gputw": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/mcp/dist/stdio.mjs"
+      ],
+      "env": {
+        "GPUTW_API_KEY": "${user_config.api_key}",
+        "GPUTW_MCP_ALLOW_EXEC": "${user_config.allow_exec}"
+      }
+    }
+  },
+  "userConfig": {
+    "api_key": {
+      "type": "string",
+      "title": "GPUtw API key",
+      "description": "A scoped key from the GPUtw dashboard → API Keys (starts with gputw_live_). Stored in secure storage, never written to plain config. Use the narrowest preset that fits: readonly to look, deploy to launch, operator to stop/restart, Upload token for CI uploads.",
+      "sensitive": true,
+      "required": true
+    },
+    "allow_exec": {
+      "type": "boolean",
+      "title": "Allow running commands inside instances",
+      "description": "Exposes exec-in-instance, which runs commands as root inside your container and needs a key with the instances:exec scope (only the `full` preset grants it). Every call is written to your account audit trail. Leave off unless you need it.",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "gputw",
+  "version": "1.1.0-beta.1",
+  "description": "Official GPUtw skill and MCP server for the GPUtw GPU cloud (gputw.ai).",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "gputw": {
+      "command": "node",
+      "args": ["mcp/dist/stdio.mjs"],
+      "env": { "GPUTW_API_KEY": "$GPUTW_API_KEY" }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+{"success":true,"data":{"includedBandwidthMbps":100,"paidBandwidthMbps":400,"bandwidthOptions":[{"mbps":100,"included":true},{"mbps":400,"included":false}],"internetPricePerMbpsHr":0.002},"error":null}

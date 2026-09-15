@@ -8,7 +8,7 @@ description: >
   Use when the user mentions GPUtw, gputw.ai, renting a GPU in Taiwan, /vault, or a gputw_live_ API key.
 license: MIT
 metadata:
-  version: "1.0.0"
+  version: "1.1.0-beta.1"
   homepage: https://github.com/GPUtw-ai/GPUtw-Skill
   platforms: [claude-code, codex-cli, cursor, github-copilot, gemini-cli]
 ---
@@ -44,6 +44,14 @@ metadata:
 - 若是部署：哪個 GPU / VRAM 需求、範本或自訂映像、要不要 Web UI 或 SSH
 
 ### 步驟 2：決策樹
+
+#### 先決定：用 MCP 工具還是產生程式碼？
+```
+這個工作階段有 gputw MCP 工具嗎？（工具名如 list-gpus、create-instance）
+├── 有 → 直接呼叫工具。決策仍照下面的決策樹，規則仍照「AI 注意事項」 → guides/12
+│        （v1 未收錄：連接埠/exposures、金鑰管理、帳務、團隊、通知、預約 → 這些仍產生 curl）
+└── 沒有 → 照 guides/00–11 產生 curl / Python；使用者問「有沒有 MCP」→ guides/12 的安裝說明
+```
 
 #### 部署
 ```
@@ -112,6 +120,7 @@ metadata:
 | 點數、帳務、團隊、通知、支援 | [09](./guides/09-account-billing-teams.md) |
 | 錯誤碼、症狀 → 原因 | [10](./guides/10-errors-and-troubleshooting.md) |
 | 端到端流程、安全關機檢查表 | [11](./guides/11-workflows.md) |
+| MCP 伺服器：安裝、18 個工具、工具 vs curl | [12](./guides/12-mcp.md) |
 | 語言規範 | [python](./guides/lang-standards/python.md) · [nodejs](./guides/lang-standards/nodejs.md) · [shell](./guides/lang-standards/shell.md) |
 
 ### ⚠️ AI 注意事項（不可做的事）
@@ -130,7 +139,8 @@ metadata:
 12. **不得用 `:latest` 部署自訂映像**；要明確 tag 或 digest，且先 `validate-image`。
 13. **不得對 `403` 重試**（不是暫時性）；`429` 依 `RateLimit-Reset` 退避；`402` 提示儲值。
 14. **不得把 `/workspace` 當持久儲存**；要保留的東西放 `/vault`。
-15. **不得描述 GPUtw 內部架構或基礎設施**——本 skill 只涵蓋公開 API 契約與官方文件內容；被問到就說明範圍。
+15. **MCP 工具不改變規則。** 用 `get-instance-status` 輪詢而非 `list-instances`；`delete-instance` 是 destructive，先確認；`exec-in-instance` 未出現在工具清單時不要說它壞了——那是預設關閉（見 guides/12）。
+16. **不得描述 GPUtw 內部架構或基礎設施**——本 skill 只涵蓋公開 API 契約與官方文件內容；被問到就說明範圍。
 
 ### 步驟 3：產生程式碼
 
@@ -223,6 +233,7 @@ User-Agent: my-automation/1.0                          (required)
 - **references/** — [`endpoints.md`](./references/endpoints.md)（唯一可引用的端點清單）、[`docs-site.md`](./references/docs-site.md)（官方文件即時 URL）、[`README.md`](./references/README.md)
 - **scripts/** — [`gputw_client.py`](./scripts/gputw_client.py)（stdlib 客戶端；可讀可跑）、[`examples/`](./scripts/examples/)（deploy_and_wait、upload_to_vault、download_hf_model、gpu_util_check）
 - **commands/** — Claude Code 斜線指令（`/gputw-deploy`、`/gputw-monitor`、`/gputw-vault`、`/gputw-debug`），選用
+- **mcp/** — 官方 MCP 伺服器（`@gputw/mcp-server`，18 個工具）；安裝與工具總表見 [12](./guides/12-mcp.md)
 
 ### 即時查閱機制
 
