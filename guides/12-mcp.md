@@ -60,6 +60,8 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 
 **工具根本沒出現** → 伺服器沒連上；重跑安裝，或這次改用 curl（guides/00–11）。
 
+> ℹ️ `claude plugin details gputw@gputw` 的 **MCP servers 會顯示 0**，這是顯示上的落差，不是故障：該計數只認外掛根目錄的 `.mcp.json`，而本外掛刻意把伺服器宣告寫在 `plugin.json` 裡（放在 repo 根目錄的 `.mcp.json` 會同時被當成**專案層級**設定，讓在 clone 裡工作的人看到 `CLAUDE_PLUGIN_ROOT` 未定義的錯誤）。以 `claude mcp list` 為準——出現 `plugin:gputw:gputw … ✔ Connected` 就是正常。
+
 ## 工具總表（18 個）
 
 | 工具 | 標註 | 對應端點 | 需要 scope |
