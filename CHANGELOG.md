@@ -35,7 +35,7 @@
 - **自訂映像就緒**：TCP 連線檢查 `webUiPort`（無 Web UI 時為 `22`），沒有 HTTP path / 狀態碼 / 認證；約 15 分鐘就緒時窗從容器開始執行算起，拉取另有較長時窗
 - **`deployPhase`**：補上 `PREPARING`、`CONFIG_ERROR`、`START_FAILED`、`CRASH_LOOP`；`PULLING_IMAGE` 只代表拉取出錯重試中；只在 `DEPLOYING` 時出現。`failureReason` 補上 `FAILED_SCHEDULING`
 - **工作區磁碟**：`diskSizeGb` / `rentableStorageGb` 是 GiB；由機器決定、無法在 `create` 指定；限制涵蓋 `/workspace` 與容器其他可寫路徑，不含映像唯讀層；`/resources` 沒有磁碟用量欄位，非 `RUNNING` 時 `usage` 全為 `null`
-- **Vault**：`GET /vault/stats` 欄位表（GiB、計費一律新台幣：單價看 `priceNtdPerGbHour`，`vaultStorageRateHr` 是舊式 USD 表示、`usedGb` 為每小時快取）；配額檢查用即時用量，上傳與伺服器端下載的進行中保留量互不計入
+- **Vault**：`GET /vault/stats` 欄位表（GiB、計費一律新台幣：單價看 `priceNtdPerGbHour`，`vaultStorageRateHr` 是舊式 USD 表示、`usedGb` 是快取值、非即時）；配額檢查用即時用量，上傳與伺服器端下載的進行中保留量互不計入
 - **容量衝突**：機器依 GPU 數共用；`409` 訊息更新為 `This machine has no free GPUs right now…` / `Not enough free GPUs on this machine…`；新增 `403 Instance limit reached…`
 - **`/workspace` 生命週期**：停止、刪除、重啟、重新設定與 `pod/restart` 都會清空 `/workspace`，只有 `/vault` 保留（先前誤寫為停止會保留）；MCP `stop-instance` 改標 destructive
 - **所有權**：他人或不存在的 `/instances/{id}` 一律 `404`
