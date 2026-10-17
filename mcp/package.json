@@ -23,7 +23,7 @@
   ],
   "type": "module",
   "bin": {
-    "gputw-mcp": "./dist/stdio.mjs"
+    "gputw-mcp": "dist/stdio.mjs"
   },
   "files": [
     "dist",
