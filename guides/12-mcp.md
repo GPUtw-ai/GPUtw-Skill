@@ -21,23 +21,30 @@ GPUtw MCP 伺服器把控制平面包成**結構化工具呼叫**：不用組 cu
 /plugin install gputw@gputw
 # 安裝時會問 GPUtw API key（標記為 sensitive，不寫進純文字設定）
 
-# 手動 — 只要 MCP
-claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mcp-server@latest
+# 手動 — 只要 MCP（repo 內已有建置好的單檔 bundle，不需 npm install）
+git clone https://github.com/GPUtw-ai/GPUtw-Skill.git ~/.gputw-skill
+claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- node ~/.gputw-skill/mcp/dist/stdio.mjs
 ```
 
-其他客戶端（Claude Desktop、Cursor、VS Code、Windsurf…）用同樣的 stdio 設定：
+其他客戶端（Claude Desktop、Cursor、VS Code、Windsurf…）用同樣的 stdio 設定（路徑請用 clone 位置的絕對路徑）：
 
 ```json
 {
   "mcpServers": {
     "gputw": {
-      "command": "npx",
-      "args": ["-y", "@gputw/mcp-server@latest"],
+      "command": "node",
+      "args": ["/absolute/path/to/GPUtw-Skill/mcp/dist/stdio.mjs"],
       "env": { "GPUTW_API_KEY": "gputw_live_xxx" }
     }
   }
 }
 ```
+
+### 更新
+
+- **外掛**：執行 `/plugin marketplace update gputw`，再到 `/plugin` → **Installed** → **Update now**（或 `claude plugin update gputw@gputw`）→ `/reload-plugins`。預設不會自動更新，可在 **Marketplaces** 分頁開啟 **Enable auto-update**。
+- **手動 clone**：執行 `git -C ~/.gputw-skill pull`，然後重啟客戶端，或在 `/mcp` 重新連線。
+- 版本以握手回應的 `serverInfo.version` 為準。
 
 ### 環境變數
 
@@ -54,7 +61,7 @@ Claude Code 裡執行 `/mcp`，`gputw` 要顯示 **Connected**。或直接握手
 
 ```bash
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}' \
-  | npx -y @gputw/mcp-server@latest
+  | node ~/.gputw-skill/mcp/dist/stdio.mjs        # 外掛安裝者把路徑換成外掛目錄，或直接看 /mcp
 # → serverInfo: {"name":"gputw","version":"1.1.0"}
 ```
 

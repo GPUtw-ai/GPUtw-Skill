@@ -75,7 +75,7 @@ git clone https://github.com/GPUtw-ai/GPUtw-Skill.git .claude/skills/gputw
 ### 版本固定
 
 ```bash
-cd ~/.claude/skills/gputw && git tag -l && git checkout v1.0.0
+cd ~/.claude/skills/gputw && git tag -l && git checkout v1.1.0
 ```
 
 ## MCP 伺服器
@@ -87,8 +87,9 @@ cd ~/.claude/skills/gputw && git tag -l && git checkout v1.0.0
 /plugin marketplace add GPUtw-ai/GPUtw-Skill
 /plugin install gputw@gputw
 
-# 只要 MCP（Claude Code）
-claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mcp-server@latest
+# 只要 MCP（Claude Code）— 用 repo 內已建置好的單檔 bundle，不需要 npm install
+git clone https://github.com/GPUtw-ai/GPUtw-Skill.git ~/.gputw-skill
+claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- node ~/.gputw-skill/mcp/dist/stdio.mjs
 ```
 
 工具分為四組：**目錄**（`list-gpus`、`list-available-nodes`、`list-templates`、`get-deploy-options`）、
@@ -102,6 +103,26 @@ claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mc
 > ℹ️ MCP 伺服器自 `1.1.0` 起為穩定版。
 
 > ⚠️ **兩種安裝方式請只選一種。** 外掛與 `~/.claude/skills/gputw/` 的手動安裝同名，Claude Code 會以外掛為準、略過手動那份（`claude plugin list` 會提示）。要並存請改掉其中一份的 `name`。
+
+## 更新
+
+新版本會發在 [Releases](https://github.com/GPUtw-ai/GPUtw-Skill/releases)，變更見 [`CHANGELOG.md`](./CHANGELOG.md)。依你的安裝方式：
+
+| 安裝方式 | 更新指令 | 生效 |
+|---|---|---|
+| **Claude Code 外掛** | `/plugin marketplace update gputw`，再到 `/plugin` → **Installed** → `gputw` → **Update now**（或在 shell 執行 `claude plugin update gputw@gputw`） | `/reload-plugins` 或開新 session |
+| 手動 Skill（`~/.claude/skills/gputw`） | `git -C ~/.claude/skills/gputw pull` | 開新 session |
+| 只裝 MCP（`~/.gputw-skill`） | `git -C ~/.gputw-skill pull` | 重啟客戶端，或在 Claude Code 的 `/mcp` 重新連線 |
+| Codex / Gemini / Cursor / Copilot | 見 [`SETUP.md`](./SETUP.md#更新) | — |
+| Claude.ai / Claude API 上傳 | 重新下載 zip，在 Settings → Features → Skills 重新上傳 | 新對話 |
+
+- **外掛預設不會自動更新**（GitHub 來源的 marketplace 預設關閉）。要自動更新：`/plugin` → **Marketplaces** → `gputw` → **Enable auto-update**。
+- 只執行 `marketplace update` 只會刷新清單，**不會**更新已安裝的外掛，還要再做 **Update now**。
+- 釘在某個版本的手動安裝（`git checkout v1.x.y`）用 `git pull` 不會前進，請改用 `git fetch --tags && git checkout <新版 tag>`。
+
+確認目前版本：
+- **Skill**：`SKILL.md` frontmatter 的 `metadata.version`，或 `claude plugin list`。
+- **MCP 伺服器**：在 Claude Code 執行 `/mcp` 看 `gputw` 的資訊，或用 [`guides/12`](./guides/12-mcp.md#先確認真的連上依賴工具前必做) 的握手探測，回應中的 `serverInfo.version` 就是目前版本。
 
 ## 驗證
 

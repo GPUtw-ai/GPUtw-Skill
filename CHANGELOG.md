@@ -26,6 +26,12 @@
 - 55 個離線單元測試（不需網路與金鑰）
 - 新增 [`guides/12-mcp.md`](./guides/12-mcp.md)；SKILL.md / AGENTS.md / GEMINI.md 加入 MCP 路由決策
 
+## 未發布
+
+- 新增「更新」說明：外掛、手動 Skill、只裝 MCP、Codex / Gemini / Cursor / Copilot（`git pull` / submodule / tag）、Claude.ai 重新上傳；README、SETUP、`mcp/README.md`、`guides/12`
+- 只裝 MCP 的安裝方式改為 `git clone` + `node mcp/dist/stdio.mjs`；`@gputw/mcp-server` 尚未發佈到 npm，原本的 `npx` 指令無法使用
+- 版本固定範例改為 `v1.1.0`
+
 ## V1.1.0 — 2026-10-17
 
 穩定版。MCP 伺服器（`@gputw/mcp-server` 1.1.0）結束 beta；並依 [#1](https://github.com/GPUtw-ai/GPUtw-Skill/issues/1) 釐清自訂映像整合的 API 契約。

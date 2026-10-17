@@ -80,8 +80,18 @@ git clone https://github.com/GPUtw-ai/GPUtw-Skill.git .gputw-skill
 ## 版本固定
 
 ```bash
-cd .gputw-skill && git tag -l && git checkout v1.0.0
+cd .gputw-skill && git tag -l && git checkout v1.1.0
 ```
+
+## 更新
+
+| 安裝方式 | 更新指令 |
+|---|---|
+| `git clone` 到 `.gputw-skill`、`~/.codex/gputw-skill`、`~/.gemini/gputw-skill` 或 `.agents/skills/gputw` | `git -C <資料夾> pull` |
+| `git submodule` | `git submodule update --remote .gputw-skill`，然後 commit 新的 submodule 指標 |
+| 釘在某個 tag | `git -C <資料夾> fetch --tags && git -C <資料夾> checkout <新版 tag>` |
+
+更新後開新的 CLI session，讓助理重新讀取 `AGENTS.md` / `GEMINI.md`。有接 MCP 伺服器的客戶端要重啟，伺服器才會換成新版（它直接從同一個資料夾的 `mcp/dist/stdio.mjs` 啟動）。專案層的 `AGENTS.md` / `GEMINI.md` 指向的是資料夾內的檔案，更新時不用改。
 
 ## 其他框架
 

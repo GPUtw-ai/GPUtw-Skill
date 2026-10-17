@@ -13,10 +13,11 @@ Official [MCP](https://modelcontextprotocol.io) server for the **GPUtw** GPU clo
 /plugin install gputw@gputw
 ```
 
-Or register the server on its own:
+Or register the server on its own. The repo ships a pre-built single-file bundle, so a clone plus `node` is all it needs (no `npm install`):
 
 ```bash
-claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mcp-server@latest
+git clone https://github.com/GPUtw-ai/GPUtw-Skill.git ~/.gputw-skill
+claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- node ~/.gputw-skill/mcp/dist/stdio.mjs
 ```
 
 **Any other client** (Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI):
@@ -25,8 +26,8 @@ claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mc
 {
   "mcpServers": {
     "gputw": {
-      "command": "npx",
-      "args": ["-y", "@gputw/mcp-server@latest"],
+      "command": "node",
+      "args": ["/absolute/path/to/GPUtw-Skill/mcp/dist/stdio.mjs"],
       "env": { "GPUTW_API_KEY": "gputw_live_xxx" }
     }
   }
@@ -34,6 +35,12 @@ claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mc
 ```
 
 Get a key from the GPUtw dashboard → **API Keys**. Use the narrowest preset that fits: `readonly` to look, `deploy` to launch, `operator` to stop/restart, **Upload token** (write-only `vault:write`) for CI uploads.
+
+## Update
+
+- **Claude Code plugin:** run `/plugin marketplace update gputw`, then go to `/plugin` → **Installed** → `gputw` → **Update now** (or run `claude plugin update gputw@gputw` in a shell). Apply it with `/reload-plugins` or a new session. Plugins from GitHub marketplaces don't auto-update unless you turn it on under `/plugin` → **Marketplaces** → `gputw` → **Enable auto-update**.
+- **Clone install (any client):** run `git -C ~/.gputw-skill pull`, then restart the client (in Claude Code, reconnect from `/mcp`). The server runs straight from `mcp/dist/stdio.mjs`, so the pull is the whole update.
+- **Check the running version:** the `serverInfo.version` in the initialize handshake. Release notes are on [GitHub Releases](https://github.com/GPUtw-ai/GPUtw-Skill/releases).
 
 ## Environment
 
