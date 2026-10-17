@@ -1,6 +1,6 @@
 # 03 · 執行個體生命週期：部署、狀態、停止、重啟、刪除
 
-> SNAPSHOT 2026-09 ｜ 來源：https://gputw.ai/en/docs/rest-api-quickstart 、/instances 、/templates 、/instance-status-oom 、/ssh-access 、公開 Instance runtime API 文件 ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
+> SNAPSHOT 2026-10 ｜ 來源：https://gputw.ai/en/docs/rest-api-quickstart 、/instances 、/templates 、/instance-status-oom 、/ssh-access 、公開 Instance runtime API 文件 ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
 
 ## 狀態機
 
@@ -8,7 +8,7 @@
 POST /instances/create
         │
         ▼
-   DEPLOYING ──(deployPhase: SCHEDULING → PULLING_IMAGE → STARTING → RUNNING)──▶ RUNNING ◀──┐
+   DEPLOYING ──(deployPhase: SCHEDULING → PREPARING → STARTING → RUNNING)──────▶ RUNNING ◀──┐
         │                                                                          │        │
         │ 失敗（failureReason）                                    POST /stop       │        │ POST /{id}/restart
         ▼                                                                          ▼        │
@@ -48,7 +48,7 @@ curl -fsS -X POST "$API/instances/create" -A "my-automation/1.0" \
 | `shmSizeGb` | 選填 | `/dev/shm` 大小，不可超過執行個體 RAM |
 | `ports` | 選填 | 要開的 HTTP 連接埠陣列（`1024–65535`，排除 `2222`, `6443`, `9000–9999`；每台最多 20 個） |
 
-回應 `201`，`data` 是執行個體物件：`id`, `status`（`DEPLOYING`）, `hourlyRate`, `computeHourlyRate`, `gpuCount`, `cpuCores`, `ramGb`, `diskSizeGb`, `shmSizeGb`, `bandwidthMbps`, `template`, `isByoImage`, `allowedPorts[]`, `portAccess`, `exposures[]`, `webUiEnabled`, `webUiPort`, `node{ id, hostname(公開標籤), gpuModel, … }`, `createdAt`, `deployPhase`。
+回應 `201`，`data` 是執行個體的基本欄位：`id`, `nodeId`, `status`（`DEPLOYING`）, `hourlyRate`, `gpuCount`, `cpuCores`, `ramGb`, `diskSizeGb`, `shmSizeGb`, `bandwidthMbps`, `template`（範本或自訂映像的映像參考）, `isByoImage`, `allowedPorts[]`, `portAccess`, `createdAt`。`node{…}`, `exposures[]`, `computeHourlyRate`, `webUiEnabled` / `webUiPort` 與 `deployPhase` 要用 `GET /instances/{id}` 取得。
 
 ### 範本（`GET /templates`，公開）
 
@@ -94,7 +94,42 @@ curl -fsS -X POST "$API/instances/create" -A "my-automation/1.0" \
 | `args[]` | 最多 64 個字串；**取代 `CMD`，保留 `ENTRYPOINT`** |
 | 限制 | 必須 `sshEnabled` 或宣告 Web UI 至少一項；不可與 `templateId` / `template` 同時使用 |
 
-> ⚠️ 自訂映像：拉取時間計入計費；若 SSH 啟用但容器沒在 `22` 監聽、或宣告的 Web UI 沒在該埠回應，約 15 分鐘後部署逾時 `FAILED`（**不收費**）。失敗時讀 `GET /instances/{id}/logs?previous=1` 與 `/events`。
+> ⚠️ 自訂映像：拉取時間計入計費。若宣告的 Web UI 埠（沒有 Web UI 時為 SSH 的 `22`）一直連不上，部署逾時 `FAILED`。失敗時讀 `GET /instances/{id}/startup-log`、`/logs?previous=1` 與 `/events`。
+
+### 自訂映像的就緒判定
+
+| 項目 | 契約 |
+|---|---|
+| 判定方式 | **TCP 連線**：宣告 Web UI 時檢查 `webUiPort`（同時開 SSH 也只檢查 Web UI 埠）；只開 SSH 時檢查 `22` |
+| HTTP 細節 | 自訂映像**不做** HTTP 檢查：沒有 method、path、狀態碼，也不帶任何認證。埠能接受連線就算就緒 |
+| 就緒之後 | 狀態轉 `RUNNING`，**開始計費** |
+| 逾時起點 | 約 15 分鐘的就緒時窗從**容器開始執行**算起，不含排程與拉取映像。自訂映像的拉取另有較長的時窗（約 45 分鐘），拉取時間計費 |
+| 早期失敗 | 拉取失敗、排程失敗、容器崩潰會提早 `FAILED`，不計費 |
+
+實務建議：
+- 讓程序**一啟動就監聽 `webUiPort`**，即使模型還沒載入。不需要回 200；能接受 TCP 連線就夠了。若同一埠也提供內容，載入前回一頁不含模型、設定或憑證的狀態頁即可。
+- Web UI 埠預設 `private`（經 GPUtw 擁有者驗證的代理），不會公開。
+- **不要在容器裡下載數小時的權重**：`RUNNING` 期間持續計費。先用 `POST /vault/downloads`（不需執行個體）把權重放進 `/vault`，容器啟動後直接從 `/vault` 載入。
+
+## 建立復原：`create` 沒有冪等鍵
+
+`POST /instances/create` **不支援** idempotency key 或 client request ID，也沒有 label / metadata / name 欄位（不認得的欄位會被直接忽略）。`customImage.env` 與 `args` 會注入容器，但 **`GET /instances` 與 `GET /instances/{id}` 不會回傳**，所以不能拿環境變數當伺服器端可查的標記。重送一次失敗回應的 `create` 可能建立**第二個**執行個體。
+
+回應遺失（逾時、斷線）時的對帳流程：
+1. 送出前在本地記錄 `nodeId`、映像參考與送出時間。
+2. 回應遺失時**不要立刻重送**，改呼叫 `GET /instances`。這份清單是**完整**的：帳號下所有非 `TERMINATED` 的執行個體，依 `createdAt` 新→舊排序，**不分頁、無篩選參數**，包含 `DEPLOYING` 與 `FAILED`。
+3. 找出 `nodeId` 相符、`template` 等於你的映像參考、`isByoImage == true`，且 `createdAt` 不早於送出時間（容許時鐘誤差）的項目。找到就採用它的 `id`；找不到才重送。
+4. 若有多個候選（例如同一機器、同一映像併發部署），保留最新的一個，其餘 `POST /instances/delete`。
+
+要在容器內辨識自己是哪一次部署：用 `env` 注入你自己的部署 UUID，並由你的程序回報（例如透過 Web UI 端點）。這只在容器執行後可讀；`DEPLOYING` / `FAILED` 期間請以上面的伺服器端欄位對帳。
+
+## 工作區磁碟（`/workspace`）
+
+- `diskSizeGb`（執行個體）與 `rentableStorageGb`（機器）單位都是 **GiB**（2³⁰ bytes），欄位名寫 `Gb` 是歷史命名。
+- 大小**由所選機器與租用份額決定**，`create` 與 `PUT /instances/{id}` 都不能指定。
+- 限制涵蓋 `/workspace` **加上**容器寫在其他位置的資料（`/tmp`、`/root`、pip / conda 安裝等）；映像本身的唯讀層**不計入**。另有少量緩衝，但請以 `diskSizeGb` 為規劃上限，範本與自訂映像相同。
+- 寫超過時寫入失敗（`ENOSPC` / `EDQUOT`），執行個體繼續執行。但請把它當硬上限：部分機器上超額仍可能讓執行個體停止，寫不進去的程序也可能自己崩潰。要保留的東西放 `/vault`。
+- `df` 看到的是整台機器的檔案系統，不是你的上限。`GET /instances/{id}/resources` 只回報 `allocated.diskSizeGb`，**沒有磁碟用量欄位**。要知道用了多少，在容器內自己量（例如 `du -sb /workspace`），並與 `diskSizeGb × 2³⁰` 比較；`du` 不計入容器其他可寫路徑，請保留餘裕。
 
 先用 `POST /instances/validate-image`（`instances:create`）檢查映像可否拉取：`{ "dockerImage": "…", "registryAuth": {…} }` → `{ ok: true, digest, platforms[] }` 或 `{ ok: false, reason: "invalid_reference"|"unauthorized"|"not_found"|"unreachable", message }`。
 
@@ -103,7 +138,8 @@ curl -fsS -X POST "$API/instances/create" -A "my-automation/1.0" \
 | 狀態 | `error`（節錄） | 處理 |
 |---|---|---|
 | `402` | `Insufficient credits to cover one hour of your total running instances` | 控制台儲值；注意是**所有**執行中執行個體的一小時總和 |
-| `409` | `This node already has an active instance (one instance per node).` | 重新查 `/nodes/available` 換機器 |
+| `409` | `This machine has no free GPUs right now…` / `Not enough free GPUs on this machine…` | 重新查 `/nodes/available` 換機器 |
+| `403` | `Instance limit reached…` | 帳號執行個體數上限；刪除不用的（`STOPPED` / `FAILED` 也算） |
 | `503` | `Selected node is not available` | 機器下線 / 維護 → 換機器 |
 | `400` | `Reserved or invalid port(s)…` / `Too many ports — max 20 per instance` | 修正 `ports` |
 | `400` | `"<template>" requires a newer GPU (compute capability ≥ N)` | 換範本或換 GPU |

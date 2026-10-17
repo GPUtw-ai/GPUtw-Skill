@@ -1,6 +1,6 @@
 {
   "name": "@gputw/mcp-server",
-  "version": "1.1.0-beta.1",
+  "version": "1.1.0",
   "description": "Official GPUtw MCP server — manage GPU instances and Vault storage on gputw.ai from any MCP client",
   "license": "MIT",
   "author": {

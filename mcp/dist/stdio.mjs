@@ -21850,7 +21850,7 @@ function registerInstanceTools(server, rt) {
     "get-instance-status",
     {
       title: "Get instance status",
-      description: "Small, cheap status read built for polling - use this (not list-instances) while waiting for a machine to come up, about every 5 seconds with an overall timeout. Three terminal outcomes: RUNNING (success), FAILED (read get-instance-logs with previous=true), INSUFFICIENT_FUNDS (the user must top up). deployPhase walks SCHEDULING -> PULLING_IMAGE -> STARTING -> RUNNING; large image pulls take minutes. A status that disagrees with podPhase means something is wrong.",
+      description: "Small, cheap status read built for polling - use this (not list-instances) while waiting for a machine to come up, about every 5 seconds with an overall timeout. Three terminal outcomes: RUNNING (success), FAILED (read get-instance-logs with previous=true), INSUFFICIENT_FUNDS (the user must top up). deployPhase (DEPLOYING only) walks SCHEDULING -> PREPARING -> STARTING -> RUNNING; PULLING_IMAGE means a pull failed and is retrying; CONFIG_ERROR / START_FAILED / CRASH_LOOP mean read the logs. A normal large image pull shows as PREPARING for minutes. A status that disagrees with podPhase means something is wrong.",
       inputSchema: { instanceId: external_exports.string() },
       annotations: READ_ONLY
     },
@@ -22220,7 +22220,7 @@ function registerTools(server, rt) {
 }
 
 // src/server.ts
-var VERSION = "1.1.0-beta.1";
+var VERSION = "1.1.0";
 var USER_AGENT = `gputw-mcp/${VERSION}`;
 function buildServer(opts = {}) {
   const client = new GputwClient({

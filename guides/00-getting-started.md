@@ -71,7 +71,7 @@ API 前面有 Cloudflare。少數客戶端簽章（目前已知：Python `urllib
 |---|---|---|
 | `GET /config/time` | `200` + JSON 信封 | 非 JSON 的 `403` → User-Agent |
 | `GET /instances` | `200`，`data` 是陣列（可能為空） | `401` → 金鑰貼錯 / 已撤銷；`403 …missing required scope` → 金鑰缺 `instances:read` |
-| `POST /instances/create` | `201`，`data.status` = `DEPLOYING` | `402` → 點數不足一小時；`409` → 該機器已被租用；`503` → 機器目前不可用 |
+| `POST /instances/create` | `201`，`data.status` = `DEPLOYING` | `402` → 點數不足一小時；`409` → 該機器沒有空 GPU；`503` → 機器目前不可用 |
 
 ## 相關文件
 

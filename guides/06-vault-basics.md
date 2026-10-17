@@ -1,6 +1,6 @@
 # 06 · Vault 儲存空間：概念、瀏覽、單檔上傳、下載
 
-> SNAPSHOT 2026-09 ｜ 來源：https://gputw.ai/en/docs/vault 、公開 Vault API 文件 ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
+> SNAPSHOT 2026-10 ｜ 來源：https://gputw.ai/en/docs/vault 、公開 Vault API 文件 ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
 
 Vault 是每個帳號的持久化網路儲存，掛載在每台執行中執行個體的 **`/vault`**。它獨立於 GPU 機器：執行個體重啟、換機、刪除都不影響；帳號下所有執行個體共享同一個 Vault。
 
@@ -8,7 +8,7 @@ Vault 是每個帳號的持久化網路儲存，掛載在每台執行中執行�
 |---|---|---|
 | 生命週期 | 持久、跨執行個體 | 跟著執行個體；刪除即消失 |
 | 放什麼 | 資料集、checkpoint、模型權重、輸出——「丟了要重載或重訓的東西」 | 環境建置、解壓、每個 epoch 都讀的資料（本機磁碟較快，先從 `/vault` 複製過來） |
-| 費用 | 依大小計費（`GET /vault/stats` 的 `vaultStorageRateHr`） | 含在執行個體內 |
+| 費用 | 依大小以新台幣計費（`GET /vault/stats` 的 `priceNtdPerGbHour`） | 含在執行個體內 |
 | 餘額 ≤ NT$0 | 保留 30 天後刪除（除非儲值） | — |
 
 路徑一律**相對於 Vault 根目錄**（`models/foo.safetensors`，不是 `/vault/models/foo.safetensors`）。
@@ -44,7 +44,27 @@ curl -fsS --max-time 5 "$TRANSFER/health" >/dev/null 2>&1 || TRANSFER="https://a
              { "name": "loras", "size": null, "modifiedAt": "…", "type": "directory" } ] }
 ```
 
-`404 Folder not found` = 路徑不存在。`GET /vault/stats` 回傳用量與配額（`usedGb`, `quotaGb`, `vaultSizeGb`, `vaultStorageRateHr`）。
+`404 Folder not found` = 路徑不存在。
+
+## 用量與配額：`GET /vault/stats`（`vault:read`，只在 `api.gputw.ai`）
+
+| 欄位 | 型別 / 單位 | 意義 |
+|---|---|---|
+| `vaultSizeGb` | number，GiB | 計費用的 Vault 大小，是**快取值**（上傳、刪除時與定期更新），不是即時值 |
+| `usedGb` | number，GiB | 舊名，與 `vaultSizeGb` 相同（同樣是快取） |
+| `billedGb` | number，GiB | 同上 |
+| `quotaGb` | number，GiB | 帳號配額（2³⁰ bytes × `quotaGb`） |
+| `priceNtdPerGbHour` / `priceNtdPerGbMonth` | number，**NT$ / GiB** / 小時（月 = 720 小時） | Vault 單價。每小時費用約為 `vaultSizeGb × priceNtdPerGbHour` |
+| `vaultStorageRateHr` | number，USD / GiB / 小時 | 同一單價的舊式 USD 表示，**不是**總費用，也**不是**新台幣。實際扣款一律以新台幣計 |
+| `transfersBlocked` | boolean | `true` 時上傳 / 下載被擋（通常是欠費） |
+
+另有配額申請相關欄位（`pendingRequest`、`maxRequestGb`、`autoApproveMaxGb`）與 `balanceNtd`；配額申請請引導控制台。
+
+**可用空間檢查用的是即時用量，不是 `usedGb`。** 不要用 `quotaGb - usedGb` 做嚴格判斷，它可能落後實際用量：
+- 建立分段上傳 session：即時用量 + 你其他進行中 session 的宣告大小 + 本次 `size` 超過配額 → `413`
+- 開始伺服器端下載（`POST /vault/downloads`）：即時用量 + 其他進行中下載 + 本次大小（來源有提供時）超過配額 → `413`
+- 兩者**互不計入**：上傳檢查看不到進行中的下載，反之亦然。完成後都會再檢查一次，超額的檔案會被移除。併發上傳與下載時請自行保留餘裕。
+- 暫存的分段與下載中的部分檔案都計入即時用量。
 
 ## 建資料夾 / 改名 / 刪除（`vault:write`）
 

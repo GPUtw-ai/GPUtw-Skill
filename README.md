@@ -1,6 +1,6 @@
 # GPUtw Skill
 
-> **V1.1.0-beta.1** ｜ GPUtw（https://gputw.ai）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。**現在含官方 MCP 伺服器（18 個工具）**。
+> **V1.1.0** ｜ GPUtw（https://gputw.ai）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。**現在含官方 MCP 伺服器（18 個工具）**。
 
 **English:** An [Agent Skill](https://agentskills.io) for the GPUtw GPU cloud (Taiwan). Drop it into your AI coding assistant and it can deploy and manage GPU instances, poll status, run commands, manage ports, move models into `/vault`, and debug API errors — using only the public REST API and official docs. Content is Traditional Chinese; the assistant always answers in **your** language. See [Install](#安裝) below.
 
@@ -99,7 +99,7 @@ claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mc
 
 安裝細節、環境變數、連線驗證、工具 vs curl 的取捨：[`guides/12-mcp.md`](./guides/12-mcp.md)。
 
-> ℹ️ MCP 伺服器目前是 **beta**（`1.1.0-beta.1`）。Skill 內容本身已穩定。
+> ℹ️ MCP 伺服器自 `1.1.0` 起為穩定版。
 
 > ⚠️ **兩種安裝方式請只選一種。** 外掛與 `~/.claude/skills/gputw/` 的手動安裝同名，Claude Code 會以外掛為準、略過手動那份（`claude plugin list` 會提示）。要並存請改掉其中一份的 `name`。
 

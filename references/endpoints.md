@@ -12,7 +12,7 @@
 | 認證 | `Authorization: Bearer gputw_live_…`（API 金鑰）或登入 JWT。**金鑰不可放在 query string** |
 | 必要 header | `User-Agent: <任意可識別字串>`（未設定 → Cloudflare `403` / `error code: 1010`，請求根本到不了 GPUtw） |
 | 回應信封 | 成功 `{ "success": true, "data": …, "error": null }`；失敗 `{ "success": false, "data": null, "error": "<訊息>" }` |
-| 所有權 | 每個 `/instances/{id}` 端點：不存在 → `404`；屬於其他帳號 → `403` |
+| 所有權 | 每個 `/instances/{id}` 端點：不存在或屬於其他帳號 → 一律 `404 Instance not found` |
 
 ## 圖例
 
@@ -41,9 +41,9 @@
 
 | 方法 | 路徑 | Scope | 指南 | 說明 | 來源 |
 |---|---|---|---|---|---|
-| GET | `/instances` | `instances:read` | [03](../guides/03-instances-lifecycle.md) | 列出帳號下的執行個體（不含 `TERMINATED`）。**勿在迴圈中輪詢此端點**，改用 `/{id}/status` | site, docs |
+| GET | `/instances` | `instances:read` | [03](../guides/03-instances-lifecycle.md) | 列出帳號下**全部**執行個體（`DEPLOYING`/`RUNNING`/`STOPPED`/`FAILED`/`INSUFFICIENT_FUNDS`，不含 `TERMINATED`），新→舊，**不分頁、無篩選參數**。不回傳 `customImage.env` / `args`。**勿在迴圈中輪詢此端點**，改用 `/{id}/status` | site, docs |
 | GET | `/instances/{id}` | `instances:read` | [04](../guides/04-instance-runtime.md) | 單一執行個體，欄位與列表相同 | docs |
-| POST | `/instances/create` | `instances:create` | [03](../guides/03-instances-lifecycle.md) | 部署。`nodeId` + (`templateId` ｜ `template` ｜ `customImage`) 三選一，選填 `bandwidthMbps`, `shmSizeGb`, `ports[]` → `201` | site, docs |
+| POST | `/instances/create` | `instances:create` | [03](../guides/03-instances-lifecycle.md) | 部署。`nodeId` + (`templateId` ｜ `template` ｜ `customImage`) 三選一，選填 `bandwidthMbps`, `shmSizeGb`, `ports[]` → `201`。**無冪等鍵**，不認得的欄位會被忽略（沒有 label / metadata） | site, docs |
 | POST | `/instances/validate-image` | `instances:create` | [03](../guides/03-instances-lifecycle.md) | 部署前檢查自訂映像可否拉取（`dockerImage`, 選填 `registryAuth`） | docs (scope 說明) |
 | POST | `/instances/stop` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | `{ "instanceId": "<uuid>" }`；停止即停止計費，保留紀錄可重啟 | site, docs |
 | POST | `/instances/delete` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | `{ "instanceId": "<uuid>" }`；終止並移除執行個體 | docs |
@@ -57,8 +57,8 @@
 | 方法 | 路徑 | Scope | 指南 | 說明 | 來源 |
 |---|---|---|---|---|---|
 | GET | `/instances/active` | `instances:read` | [04](../guides/04-instance-runtime.md) | 所有 `DEPLOYING`/`RUNNING` 執行個體 + 即時 `pod` 狀態 + `usage` | docs |
-| GET | `/instances/{id}/status` | `instances:read` | [04](../guides/04-instance-runtime.md) | **輪詢用**的輕量端點：`status`, `deployPhase`, `podPhase`, `ready`, `restartCount`, `waitingReason`, `failureReason`, `uptimeSec` | docs |
-| GET | `/instances/{id}/resources` | `instances:read` | [04](../guides/04-instance-runtime.md) | `allocated` + `usage`（含 `source`: `prometheus`/`fallback`/`none`）+ `billing` | docs |
+| GET | `/instances/{id}/status` | `instances:read` | [04](../guides/04-instance-runtime.md) | **輪詢用**的輕量端點：`status`, `deployPhase`（僅 `DEPLOYING`）, `podPhase`, `ready`, `restartCount`, `waitingReason`, `terminatedReason`, `failureReason`, `createdAt`, `startedAt`, `uptimeSec` | docs |
+| GET | `/instances/{id}/resources` | `instances:read` | [04](../guides/04-instance-runtime.md) | `allocated` + `usage`（含 `source`: `prometheus`/`fallback`/`none`）+ `billing`；非 `RUNNING` 時 `usage` 全 `null`、`source: none`；**沒有磁碟用量欄位** | docs |
 | GET | `/instances/{id}/events?limit=20` | `instances:read` | [04](../guides/04-instance-runtime.md) | 結構化事件 `{ events[{type, reason, message, count, lastSeen}], podExists }`；`limit` 1–100 | docs |
 | GET | `/instances/{id}/logs?tail=200&previous=1` | `instances:read` | [04](../guides/04-instance-runtime.md) | 容器日誌尾端；`tail` ≤ 2000 行、回應 ≤ 48 KiB；`previous=1` 讀上一個容器（crash loop 必用） | docs |
 | GET | `/instances/{id}/runs?limit=50` | `instances:read` | [04](../guides/04-instance-runtime.md) | 此執行個體的計費區段（新→舊）；`limit` 1–200 | docs |
@@ -78,7 +78,7 @@
 
 | 方法 | 路徑 | Scope | 指南 | 說明 | 來源 |
 |---|---|---|---|---|---|
-| GET | `/vault/stats` | `vault:read` | [06](../guides/06-vault-basics.md) | 用量與配額 | docs (提及) |
+| GET | `/vault/stats` | `vault:read` | [06](../guides/06-vault-basics.md) | 計費用量與配額（GiB）、單價；欄位見 06 | docs (提及) |
 | GET | `/vault/list?path=models` | `vault:read` | [06](../guides/06-vault-basics.md) | 列出資料夾：`files[{ name, size, modifiedAt, type }]` | site, docs |
 | POST | `/vault/mkdir` | `vault:write` | [06](../guides/06-vault-basics.md) | 建立資料夾 `{ "path": "…" }` | site (scope 說明) |
 | POST | `/vault/rename` | `vault:write` | [06](../guides/06-vault-basics.md) | 搬移/改名 `{ "from": "…", "to": "…" }` | site (scope 說明) |

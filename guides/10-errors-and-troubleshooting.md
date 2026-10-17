@@ -1,6 +1,6 @@
 # 10 · 錯誤碼與除錯
 
-> SNAPSHOT 2026-09 ｜ 來源：公開 API 文件、https://gputw.ai/en/docs/faq ｜ 訊息字串可能微調，請以實際回應為準
+> SNAPSHOT 2026-10 ｜ 來源：公開 API 文件、https://gputw.ai/en/docs/faq ｜ 訊息字串可能微調，請以實際回應為準
 
 ## 遇到錯誤怎麼查？
 
@@ -47,7 +47,8 @@ HTTP 回應
 | `403`（他人資源） | — | 執行個體屬於其他帳號 | 檢查 id |
 | `404` | `Template not found` / `Folder not found` / `File not found` / `API key not found` | | 檢查 id / 路徑 |
 | `404`（傳輸主機） | — | `upload.gputw.ai` 只服務傳輸路由 | 改打 `api.gputw.ai` |
-| `409` | `This node already has an active instance (one instance per node).` | 機器被搶 | 重查 `/nodes/available` |
+| `409` | `This machine has no free GPUs right now…` / `Not enough free GPUs on this machine…` | 機器被搶 | 重查 `/nodes/available` |
+| `403` | `Instance limit reached…` | 帳號執行個體數上限（計入非 `TERMINATED` 的） | 刪除不用的執行個體 |
 | `409` | `Upload is <status>` / `Target already exists` | | 重新查詢狀態 |
 | `410` | `SystemConfig removed … use /api/gpus/active` | 已退役端點 | 改用新端點 |
 | `413` | Vault 配額不足 | | 清理或申請加大配額 |
@@ -86,14 +87,17 @@ req.add_header("User-Agent", "my-automation/1.0")   # 必要
 ### 部署卡在 `DEPLOYING`
 | `deployPhase` / 症狀 | 意思 | 動作 |
 |---|---|---|
-| `PULLING_IMAGE` 很久 | 大映像（自訂映像常見） | 等；自訂映像拉取時間計費 |
+| `PREPARING` 很久 | 正常拉取大映像、掛載儲存都顯示為 `PREPARING`（自訂映像常見） | 等；自訂映像拉取時間計費 |
+| `PULLING_IMAGE` | 拉取**出錯後重試中**（不是正常拉取） | 先 `POST /instances/validate-image`；持續則變 `IMAGE_PULL_FAILED` |
+| `CONFIG_ERROR` / `START_FAILED` / `CRASH_LOOP` | 容器設定錯 / 無法啟動 / 反覆崩潰 | `GET /logs?previous=1` |
 | `SCHEDULING` 不動、`failureReason: FAILED_SCHEDULING_MEMORY` | 機器資源不足 | `stop` 後換機器重啟 |
 | `failureReason: IMAGE_PULL_FAILED` | 映像不存在 / 私有 registry 憑證錯 / 用了 `latest` | 先 `POST /instances/validate-image` |
 | `failureReason: CONTAINER_CRASHING`、`restartCount` 上升 | 程序啟動就掛 | `GET /logs?previous=1` |
-| 15 分鐘後 `FAILED` | SSH 沒在 22 監聽 / Web UI 沒回應 | 修映像；此情況不收費 |
+| 容器啟動後 ~15 分鐘 `FAILED` | `webUiPort`（或 SSH 的 22）一直無法 TCP 連線 | 讓程序一啟動就監聽該埠；自訂映像的拉取時間仍計費 |
+| `failureReason: FAILED_SCHEDULING` | 機器資源（含磁碟）無法排程 | 換機器 |
 
 ### `FAILED` / crash loop 除錯順序
-1. `GET /instances/{id}/status` → `failureReason`, `waitingReason`, `terminatedReason`
+1. `GET /instances/{id}/status` → `failureReason`, `waitingReason`, `terminatedReason`（已 `FAILED` 時容器多半已移除，這些常為 `null`，直接看第 4 步）
 2. `GET /instances/{id}/events` → `reason` / `message`
 3. `GET /instances/{id}/logs?tail=200&previous=1` → 真正的錯誤
 4. `GET /instances/{id}/startup-log`（控制台「Startup log」同源）

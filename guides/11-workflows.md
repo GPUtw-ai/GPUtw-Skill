@@ -75,7 +75,7 @@ ComfyUI 類別目錄：`checkpoints`, `diffusion_models`, `text_encoders`, `vae`
 1. POST /instances/validate-image {"dockerImage":"ghcr.io/acme/trainer:1.4.2"}   → ok:true 才繼續
 2. POST /instances/create {"nodeId":…,"customImage":{"dockerImage":"…","sshEnabled":true,
         "env":[{"name":"HF_TOKEN","value":"…"}],"args":["--port","8080"]},"ports":[8080]}
-3. 輪詢 /status；PULLING_IMAGE 可能數分鐘（計費中）
+3. 輪詢 /status；PREPARING（拉取映像）可能數分鐘（自訂映像計費中）
 4. FAILED → /logs?previous=1、/events；常見：沒在 22 監聽、Web UI 埠 < 1024、用了 :latest
 ```
 

@@ -1,6 +1,6 @@
 # 12 · MCP 伺服器：什麼時候用工具、什麼時候用 curl
 
-> SNAPSHOT 2026-09 ｜ 本 repo 的 `mcp/` 套件（`@gputw/mcp-server` v1.1.0-beta.1，beta）｜ 端點契約見 [`references/endpoints.md`](../references/endpoints.md)
+> SNAPSHOT 2026-09 ｜ 本 repo 的 `mcp/` 套件（`@gputw/mcp-server` v1.1.0）｜ 端點契約見 [`references/endpoints.md`](../references/endpoints.md)
 
 GPUtw MCP 伺服器把控制平面包成**結構化工具呼叫**：不用組 curl、不用處理 shell 引號、錯誤是結構化的。它跟本 Skill 是互補的——
 
@@ -55,7 +55,7 @@ Claude Code 裡執行 `/mcp`，`gputw` 要顯示 **Connected**。或直接握手
 ```bash
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}' \
   | npx -y @gputw/mcp-server@latest
-# → serverInfo: {"name":"gputw","version":"1.1.0-beta.1"}
+# → serverInfo: {"name":"gputw","version":"1.1.0"}
 ```
 
 **工具根本沒出現** → 伺服器沒連上；重跑安裝，或這次改用 curl（guides/00–11）。

@@ -8,7 +8,7 @@ description: >
   Use when the user mentions GPUtw, gputw.ai, renting a GPU in Taiwan, /vault, or a gputw_live_ API key.
 license: MIT
 metadata:
-  version: "1.1.0-beta.1"
+  version: "1.1.0"
   homepage: https://github.com/GPUtw-ai/GPUtw-Skill
   platforms: [claude-code, codex-cli, cursor, github-copilot, gemini-cli]
 ---
@@ -206,8 +206,8 @@ User-Agent: my-automation/1.0                          (required)
 
 ### 狀態值
 - `status`: `DEPLOYING` → `RUNNING`（計費）→ `STOPPED` / `FAILED` / `TERMINATED`；`INSUFFICIENT_FUNDS`
-- `deployPhase`: `SCHEDULING` → `PULLING_IMAGE` → `STARTING` → `RUNNING`
-- `failureReason`: `FAILED_SCHEDULING_MEMORY` · `IMAGE_PULL_FAILED` · `CONTAINER_CRASHING` · `POD_FAILED`
+- `deployPhase`（僅 `DEPLOYING` 時出現，其他狀態不含此欄位）: `SCHEDULING` → `PREPARING` → `STARTING` → `RUNNING`；`PULLING_IMAGE` 只在拉取出錯重試時出現；異常 `CONFIG_ERROR` · `START_FAILED` · `CRASH_LOOP`
+- `failureReason`: `FAILED_SCHEDULING_MEMORY` · `FAILED_SCHEDULING` · `IMAGE_PULL_FAILED` · `CONTAINER_CRASHING` · `POD_FAILED`（`FAILED` 之後通常為 `null` → 讀 `/startup-log`）
 - `usage.source`: `prometheus` · `fallback` · `none`
 - 上傳 `status`: `pending` → `assembling` → `completed` | `failed` | `aborted`；下載：`pending` → `downloading` → `completed` | `failed` | `canceled`
 
@@ -215,14 +215,15 @@ User-Agent: my-automation/1.0                          (required)
 | 項目 | 值 |
 |---|---|
 | 部署門檻 | 餘額 ≥ 所有執行中執行個體一小時費用（`402`） |
-| 每台機器 | 同時一個執行個體（`409`） |
+| 每台機器 | 依 GPU 數共用；沒有足夠空 GPU → `409`。`create` 無冪等鍵 |
 | 連接埠 | `1024–65535`，排除 `2222`, `6443`, `9000–9999`；每台 ≤ 20；範本 UI 埠免費 + 3 個免費額外埠 |
 | exec | argv ≤ 64 項；`timeoutMs` 預設 30000、最大 120000（`504`）；每串流 256 KiB |
 | logs | `tail` ≤ 2000 行、48 KiB |
 | 分段上傳 | 單檔 ≤ 2 TB；`chunkSize` 預設 16 MiB，可要求 4–64 MiB；session 閒置 48 h 清除 |
 | 伺服器端下載 | 每使用者同時 ≤ 3（`429`） |
 | 速率限制（每 5 分鐘） | 執行個體動作 60、映像驗證 120、vault 變更 600、分段 PUT 5000 |
-| 自訂映像 | 拉取計費；SSH/Web UI 未就緒 ~15 分鐘後 `FAILED` 不收費 |
+| 自訂映像 | 就緒 = TCP 連上 `webUiPort`（無 Web UI 時 22）；容器啟動後 ~15 分鐘內未就緒 → `FAILED`；拉取另有較長時窗且計費 |
+| 容量單位 | `rentableStorageGb`、`diskSizeGb`、Vault `*Gb` 皆為 GiB（2³⁰） |
 
 ### 驗證 Skill 是否載入
 問：「GPUtw API key 的前綴是什麼？」→ 正確答案 `gputw_live_`。

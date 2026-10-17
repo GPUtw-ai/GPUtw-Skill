@@ -2,7 +2,7 @@
 
 Official [MCP](https://modelcontextprotocol.io) server for the **GPUtw** GPU cloud ([gputw.ai](https://gputw.ai)) — deploy and manage GPU instances, read live utilisation and logs, and move models into `/vault`, from any MCP client.
 
-> **Beta** (`1.1.0-beta.1`). Ships as part of the [GPUtw Skill](https://github.com/GPUtw-ai/GPUtw-Skill), which also carries the integration guides the tools assume.
+> **Stable** (`1.1.0`). Ships as part of the [GPUtw Skill](https://github.com/GPUtw-ai/GPUtw-Skill), which also carries the integration guides the tools assume.
 
 ## Install
 

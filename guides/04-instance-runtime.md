@@ -1,8 +1,8 @@
 # 04 · 即時狀態：輪詢、用量、事件、日誌、執行指令
 
-> SNAPSHOT 2026-09 ｜ 來源：公開 Instance runtime API 文件、https://gputw.ai/en/docs/instance-runtime 、/monitoring ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
+> SNAPSHOT 2026-10 ｜ 來源：公開 Instance runtime API 文件、https://gputw.ai/en/docs/instance-runtime 、/monitoring ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
 
-生命週期 API 描述執行個體**被配置成什麼**；本章的端點描述它**現在在做什麼**。全部需要 `instances:read`（除非另註），且只會觸及同帳號的執行個體（不存在 `404`、他人的 `403`）。
+生命週期 API 描述執行個體**被配置成什麼**；本章的端點描述它**現在在做什麼**。全部需要 `instances:read`（除非另註），且只會觸及同帳號的執行個體（不存在或屬於他人一律 `404`）。
 
 ## `GET /instances/{id}/status` — 輪詢專用
 
@@ -12,18 +12,29 @@
 {
   "instanceId": "…",
   "status": "DEPLOYING",           // 平台認定的狀態
-  "deployPhase": "PULLING_IMAGE",  // SCHEDULING | PULLING_IMAGE | STARTING | RUNNING
+  "deployPhase": "PREPARING",      // 僅 DEPLOYING 時出現，其他狀態不含此欄位；見下表
   "podPhase": "Pending",           // 容器層回報的狀態
   "ready": false,
   "restartCount": 0,
   "waitingReason": "ContainerCreating",
   "terminatedReason": null,
-  "failureReason": null,           // FAILED_SCHEDULING_MEMORY | IMAGE_PULL_FAILED | CONTAINER_CRASHING | POD_FAILED
+  "failureReason": null,           // FAILED_SCHEDULING_MEMORY | FAILED_SCHEDULING | IMAGE_PULL_FAILED | CONTAINER_CRASHING | POD_FAILED
   "createdAt": "…", "startedAt": null, "uptimeSec": null
 }
 ```
 
-`status` 與 `podPhase` 不一致的時候，正是出問題的時候——這也是輪詢客戶端想偵測的情況。大映像拉取要數分鐘，`deployPhase` 告訴你還在拉還是已在啟動。
+`status` 與 `podPhase` 不一致的時候，正是出問題的時候——這也是輪詢客戶端想偵測的情況。
+
+| `deployPhase` | 意思 |
+|---|---|
+| `SCHEDULING` | 等待排程（容器尚未建立時也顯示這個） |
+| `PREPARING` | 建立容器：儲存掛載與**正常拉取映像**都在這裡，外部無法區分，大映像會停留數分鐘 |
+| `PULLING_IMAGE` | 拉取**出錯後重試中**，不是正常拉取 |
+| `STARTING` | 容器已執行，等待就緒（自訂映像的 TCP 檢查見 [03](./03-instances-lifecycle.md) §自訂映像的就緒判定） |
+| `RUNNING` | 已就緒 |
+| `CONFIG_ERROR` / `START_FAILED` / `CRASH_LOOP` | 設定錯誤 / 無法啟動 / 反覆崩潰 → 讀 `/logs?previous=1` |
+
+`failureReason` 只在 `DEPLOYING` 與 `FAILED` 計算；已 `FAILED` 的執行個體容器通常已移除，所以常為 `null`。持久的失敗說明在 `GET /instances/{id}/startup-log`。
 
 ```bash
 until [ "$(curl -fsS -A my-automation/1.0 "$API/instances/$ID/status" -H "Authorization: Bearer $KEY" \
@@ -57,7 +68,11 @@ done
 
 > ⚠️ **每個指標都是數字或 `null`，永遠不會用 `0` 代替。** `source` 說明樣本來源：`prometheus`（即時）、`fallback`（次要輪詢器）、`none`（沒有遙測，所有指標皆 `null`）。因此「閒置的 0%」和「沒在回報」是分得開的——**不要把 `null` 當 0，也不要把 `0` 當成沒遙測**。沒有 GPU 遙測的機器 `gpuPct` / `vramUsedMib` 為 `null`，其他指標照常。
 
-百分比皆以執行個體**自身配置**為分母，不是整台主機。這也是為什麼在容器內跑 `df` 不準（它看到的是整台機器的檔案系統）——磁碟用量以此端點為準。
+百分比皆以執行個體**自身配置**為分母，不是整台主機。
+
+- **只有 `RUNNING` 才查詢遙測。** `DEPLOYING`、`STOPPED`、`FAILED` 等狀態一律回 `source: "none"`、所有指標 `null`；此時的 `sampledAt` 是回應時間，不代表樣本年齡。
+- `allocated` 的 `*Gb` 單位是 GiB。
+- **沒有磁碟用量欄位**：只有 `allocated.diskSizeGb`（上限）。容器內的 `df` 看到整台機器的檔案系統，不能當配額檢查；用量請在容器內自行量測（見 [03](./03-instances-lifecycle.md) §工作區磁碟）。
 
 ## `GET /instances/active` — 現在跑著什麼
 

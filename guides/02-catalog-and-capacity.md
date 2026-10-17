@@ -1,6 +1,6 @@
 # 02 · GPU 目錄與可用容量
 
-> SNAPSHOT 2026-09 ｜ 來源：https://gputw.ai/en/docs/gpu-catalog 、https://gputw.ai/en/docs/rest-api-quickstart 、對 `GET /gpus/active` 的實際回應 ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
+> SNAPSHOT 2026-10 ｜ 來源：https://gputw.ai/en/docs/gpu-catalog 、https://gputw.ai/en/docs/rest-api-quickstart 、對 `GET /gpus/active` 的實際回應 ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
 
 部署永遠是兩步：**先選 GPU 型號（catalog），再選一台該型號目前可租的機器（node）**。`POST /instances/create` 需要的是機器的 `nodeId`，不是 GPU 型號的 id。
 
@@ -49,9 +49,10 @@ curl -fsS -A "my-automation/1.0" -H "Authorization: Bearer $GPUTW_API_KEY" \
 > ℹ️ 回應刻意**不含**基礎設施與管理欄位（真實主機名、內網位址、SSH 憑證、內部價格組成）。把它當作允許清單式的公開契約：**未在官方文件列出的欄位不保證 API 穩定**。
 
 規則：
-- **一台機器同時只能有一個執行個體**。`availableGpus === 0` 或 `queueDepth > 0` 表示要排隊。
+- 機器可依 GPU 數共用（整機或單張 GPU）；`availableGpus === 0` 或 `queueDepth > 0` 表示要排隊。
+- `rentableStorageGb` 是 **GiB**（2³⁰ bytes），即部署後執行個體的 `diskSizeGb` 依據；磁碟大小**由所選機器（與租用的 GPU 份額）決定，`create` 不能指定**。需要大工作區就挑 `rentableStorageGb` 夠大的機器。
 - 範本有 `architectures` 限制（`amd64` / `arm64`）與 `minComputeCapability`；DGX Spark 機器是 `arm64`，只能配 `DGX Spark` 類別的範本。部署時不相容會回 `400`，訊息會說明需要更新的 GPU。
-- 可用性隨時變動；拿到 `nodeId` 後盡快呼叫 `create`，`409 This node already has an active instance` 表示被別人搶先了 → 重新查詢。
+- 可用性隨時變動；拿到 `nodeId` 後盡快呼叫 `create`，`409 This machine has no free GPUs right now…` 或 `409 Not enough free GPUs on this machine…` 表示被別人搶先了 → 重新查詢。
 
 ## 容量排隊（`reservations:manage`）
 

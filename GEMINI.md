@@ -1,6 +1,6 @@
 # GPUtw API 整合助手 — Google Gemini CLI
 
-> **V1.1.0-beta.1** ｜ 適用 Google Gemini CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
+> **V1.1.0** ｜ 適用 Google Gemini CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
 
 ## 啟動指示
 
@@ -24,7 +24,8 @@
 - 選型號：`GET /gpus/active`（公開）→ `id` 當 `catalogId`；`liveRentablePrice == null` / `demandStatus == 售罄` 表示沒空機
 - 選機器：`GET /nodes/available?catalogId=…`（`catalog:read`）→ `availableGpus > 0` 的 `id` 當 `nodeId`
 - 選範本：`GET /templates`（公開）→ `architectures[]` 必須含機器 `arch`（DGX Spark = `arm64`）
-- 自訂映像：`customImage.dockerImage` 用明確 tag / digest、`sshEnabled` 或 Web UI 二選一，先 `POST /instances/validate-image`
+- 自訂映像：`customImage.dockerImage` 用明確 tag / digest、`sshEnabled` 或 Web UI 二選一，先 `POST /instances/validate-image`；就緒 = 對 `webUiPort`（或 22）的 TCP 連線成功
+- `create` 沒有冪等鍵：回應遺失時不要盲目重送，先 `GET /instances` 對帳（見 `guides/03` §建立復原）
 - 部署：`POST /instances/create` → `201`；輪詢 `GET /instances/{id}/status` 每 5 秒到 `RUNNING`；`FAILED` → `/logs?previous=1`
 - 結束：`POST /instances/stop`（可重啟）或 `POST /instances/delete`
 
@@ -74,8 +75,8 @@
 - API base：`https://api.gputw.ai/api`；傳輸主機：`https://upload.gputw.ai/api`（探測 `/health`）；SSH：`ssh pod-<instance-id>@ssh.gputw.ai -p 2222`；Web UI：`https://<port>-<instance-id>.gputw.ai`；raw：`tcp.gputw.ai` / `udp.gputw.ai`
 - 信封：`{ "success": true, "data": …, "error": null }` / `{ "success": false, "data": null, "error": "…" }`
 - Presets：`readonly`（catalog:read, instances:read, profile:read, vault:read, billing:read, notifications:read）｜ `deploy`（catalog:read, instances:read, instances:create）｜ `operator`（instances:read, instances:manage, ports:manage）｜ `Upload token`（vault:write）｜ `full`（全部，含 instances:exec）
-- 狀態：`DEPLOYING` → `RUNNING` → `STOPPED` / `FAILED` / `TERMINATED`；`INSUFFICIENT_FUNDS`；`deployPhase`: `SCHEDULING` / `PULLING_IMAGE` / `STARTING` / `RUNNING`
-- 限制：部署需餘額 ≥ 一小時；每機一執行個體；連接埠 `1024–65535` 排除 `2222`, `6443`, `9000–9999`；exec `timeoutMs` ≤ 120000；logs `tail` ≤ 2000；上傳單檔 ≤ 2 TB；同時下載 ≤ 3
+- 狀態：`DEPLOYING` → `RUNNING` → `STOPPED` / `FAILED` / `TERMINATED`；`INSUFFICIENT_FUNDS`；`deployPhase`（僅 `DEPLOYING` 時有值）: `SCHEDULING` / `PREPARING` / `PULLING_IMAGE` / `STARTING` / `RUNNING`，異常 `CONFIG_ERROR` / `START_FAILED` / `CRASH_LOOP`
+- 限制：部署需餘額 ≥ 一小時；機器依 GPU 數共用（沒空 GPU → `409`）；連接埠 `1024–65535` 排除 `2222`, `6443`, `9000–9999`；exec `timeoutMs` ≤ 120000；logs `tail` ≤ 2000；上傳單檔 ≤ 2 TB；同時下載 ≤ 3
 - 驗證載入：「GPUtw API key 的前綴是什麼？」→ `gputw_live_`
 
 ## 即時 API 規格

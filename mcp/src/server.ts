@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { GputwClient, type FetchLike } from './client.js';
 import { registerTools } from './tools.js';
 
-export const VERSION = '1.1.0-beta.1';
+export const VERSION = '1.1.0';
 export const USER_AGENT = `gputw-mcp/${VERSION}`;
 
 export interface BuildOptions {

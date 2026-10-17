@@ -30,7 +30,8 @@ export async function call<T>(method: string, path: string, body?: unknown, init
 ## 型別
 ```ts
 export type InstanceStatus = "DEPLOYING" | "RUNNING" | "STOPPED" | "FAILED" | "TERMINATED" | "INSUFFICIENT_FUNDS";
-export type DeployPhase = "SCHEDULING" | "PULLING_IMAGE" | "STARTING" | "RUNNING";
+export type DeployPhase = "SCHEDULING" | "PREPARING" | "PULLING_IMAGE" | "STARTING" | "RUNNING"
+  | "CONFIG_ERROR" | "START_FAILED" | "CRASH_LOOP";   // 僅 DEPLOYING 時出現，否則欄位不存在
 export interface Usage { cpuPct: number | null; ramPct: number | null; gpuPct: number | null; vramPct: number | null;
                          source: "prometheus" | "fallback" | "none"; sampledAt: string | null; }
 ```
