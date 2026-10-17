@@ -80,7 +80,7 @@ git clone https://github.com/GPUtw-ai/GPUtw-Skill.git .gputw-skill
 ## 版本固定
 
 ```bash
-cd .gputw-skill && git tag -l && git checkout v1.1.0
+cd .gputw-skill && git tag -l && git checkout v1.1.1
 ```
 
 ## 更新

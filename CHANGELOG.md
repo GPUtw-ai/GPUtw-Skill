@@ -26,12 +26,6 @@
 - 55 個離線單元測試（不需網路與金鑰）
 - 新增 [`guides/12-mcp.md`](./guides/12-mcp.md)；SKILL.md / AGENTS.md / GEMINI.md 加入 MCP 路由決策
 
-## 未發布
-
-- 新增「更新」說明：外掛、手動 Skill、只裝 MCP、Codex / Gemini / Cursor / Copilot（`git pull` / submodule / tag）、Claude.ai 重新上傳；README、SETUP、`mcp/README.md`、`guides/12`
-- `@gputw/mcp-server` 1.1.0 發佈到 npm；只裝 MCP 可用 `git clone` + `node mcp/dist/stdio.mjs`，或 `npx -y @gputw/mcp-server@latest`
-- 版本固定範例改為 `v1.1.0`
-
 ## V1.1.0 — 2026-10-17
 
 穩定版。MCP 伺服器（`@gputw/mcp-server` 1.1.0）結束 beta；並依 [#1](https://github.com/GPUtw-ai/GPUtw-Skill/issues/1) 釐清自訂映像整合的 API 契約。
@@ -46,3 +40,12 @@
 - **`/workspace` 生命週期**：停止、刪除、重啟、重新設定與 `pod/restart` 都會清空 `/workspace`，只有 `/vault` 保留（先前誤寫為停止會保留）；MCP `stop-instance` 改標 destructive
 - **所有權**：他人或不存在的 `/instances/{id}` 一律 `404`
 - `create` 的 `201` 回應只含基本欄位；`node`、`exposures`、Web UI 欄位改用 `GET /instances/{id}`
+
+## V1.1.1 — 2026-10-17
+
+更新說明與 npm 發佈。
+
+- 新增「更新」說明：外掛、手動 Skill、只裝 MCP、Codex / Gemini / Cursor / Copilot（`git pull` / submodule / tag）、Claude.ai 重新上傳；README、SETUP、`mcp/README.md`、`guides/12`
+- `@gputw/mcp-server` 1.1.0 發佈到 npm；只裝 MCP 可用 `git clone` + `node mcp/dist/stdio.mjs`，或 `npx -y @gputw/mcp-server@latest`
+- 版本固定範例改為 `v1.1.1`
+- Skill 與 MCP 伺服器版本可以不同：本版 Skill 為 1.1.1，MCP 伺服器仍是 1.1.0（程式未變）

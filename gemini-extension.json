@@ -1,6 +1,6 @@
 {
   "name": "gputw",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Official GPUtw skill and MCP server for the GPUtw GPU cloud (gputw.ai).",
   "contextFileName": "GEMINI.md",
   "mcpServers": {

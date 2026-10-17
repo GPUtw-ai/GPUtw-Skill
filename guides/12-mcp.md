@@ -1,6 +1,6 @@
 # 12 · MCP 伺服器：什麼時候用工具、什麼時候用 curl
 
-> SNAPSHOT 2026-09 ｜ 本 repo 的 `mcp/` 套件（`@gputw/mcp-server` v1.1.0）｜ 端點契約見 [`references/endpoints.md`](../references/endpoints.md)
+> SNAPSHOT 2026-10 ｜ 本 repo 的 `mcp/` 套件（`@gputw/mcp-server` v1.1.0）｜ 端點契約見 [`references/endpoints.md`](../references/endpoints.md)
 
 GPUtw MCP 伺服器把控制平面包成**結構化工具呼叫**：不用組 curl、不用處理 shell 引號、錯誤是結構化的。它跟本 Skill 是互補的——
 
@@ -48,7 +48,7 @@ claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mc
 - **外掛**：執行 `/plugin marketplace update gputw`，再到 `/plugin` → **Installed** → **Update now**（或 `claude plugin update gputw@gputw`）→ `/reload-plugins`。預設不會自動更新，可在 **Marketplaces** 分頁開啟 **Enable auto-update**。
 - **手動 clone**：執行 `git -C ~/.gputw-skill pull`，然後重啟客戶端，或在 `/mcp` 重新連線。
 - **npm（`npx … @latest`）**：重啟客戶端，讓 `npx` 重新啟動伺服器。若一直跑到舊版，改成明確版本，例如 `@gputw/mcp-server@1.1.0`，更新時再改版號。
-- 版本以握手回應的 `serverInfo.version` 為準。
+- 版本以握手回應的 `serverInfo.version` 為準。MCP 伺服器的版號與 Skill 分開，Skill 只改文件時不會變。
 
 ### 環境變數
 

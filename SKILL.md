@@ -8,7 +8,7 @@ description: >
   Use when the user mentions GPUtw, gputw.ai, renting a GPU in Taiwan, /vault, or a gputw_live_ API key.
 license: MIT
 metadata:
-  version: "1.1.0"
+  version: "1.1.1"
   homepage: https://github.com/GPUtw-ai/GPUtw-Skill
   platforms: [claude-code, codex-cli, cursor, github-copilot, gemini-cli]
 ---

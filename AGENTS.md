@@ -1,6 +1,6 @@
 # GPUtw API 整合助手 — OpenAI Codex CLI
 
-> **V1.1.0** ｜ 適用 OpenAI Codex CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
+> **V1.1.1** ｜ 適用 OpenAI Codex CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
 
 ## 啟動指示
 
