@@ -29,7 +29,7 @@
 ## 未發布
 
 - 新增「更新」說明：外掛、手動 Skill、只裝 MCP、Codex / Gemini / Cursor / Copilot（`git pull` / submodule / tag）、Claude.ai 重新上傳；README、SETUP、`mcp/README.md`、`guides/12`
-- 只裝 MCP 的安裝方式改為 `git clone` + `node mcp/dist/stdio.mjs`；`@gputw/mcp-server` 尚未發佈到 npm，原本的 `npx` 指令無法使用
+- `@gputw/mcp-server` 1.1.0 發佈到 npm；只裝 MCP 可用 `git clone` + `node mcp/dist/stdio.mjs`，或 `npx -y @gputw/mcp-server@latest`
 - 版本固定範例改為 `v1.1.0`
 
 ## V1.1.0 — 2026-10-17

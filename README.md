@@ -90,6 +90,9 @@ cd ~/.claude/skills/gputw && git tag -l && git checkout v1.1.0
 # 只要 MCP（Claude Code）— 用 repo 內已建置好的單檔 bundle，不需要 npm install
 git clone https://github.com/GPUtw-ai/GPUtw-Skill.git ~/.gputw-skill
 claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- node ~/.gputw-skill/mcp/dist/stdio.mjs
+
+# 或用 npm 套件（不需 clone）
+claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mcp-server@latest
 ```
 
 工具分為四組：**目錄**（`list-gpus`、`list-available-nodes`、`list-templates`、`get-deploy-options`）、
@@ -113,6 +116,7 @@ claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- node ~/.gputw-sk
 | **Claude Code 外掛** | `/plugin marketplace update gputw`，再到 `/plugin` → **Installed** → `gputw` → **Update now**（或在 shell 執行 `claude plugin update gputw@gputw`） | `/reload-plugins` 或開新 session |
 | 手動 Skill（`~/.claude/skills/gputw`） | `git -C ~/.claude/skills/gputw pull` | 開新 session |
 | 只裝 MCP（`~/.gputw-skill`） | `git -C ~/.gputw-skill pull` | 重啟客戶端，或在 Claude Code 的 `/mcp` 重新連線 |
+| 只裝 MCP（npm，`npx … @latest`） | 不用指令；若一直跑到舊版，改成明確版本（例如 `@1.1.0`）並在更新時改版號 | 重啟客戶端 |
 | Codex / Gemini / Cursor / Copilot | 見 [`SETUP.md`](./SETUP.md#更新) | — |
 | Claude.ai / Claude API 上傳 | 重新下載 zip，在 Settings → Features → Skills 重新上傳 | 新對話 |
 

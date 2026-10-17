@@ -18,16 +18,19 @@ Or register the server on its own. The repo ships a pre-built single-file bundle
 ```bash
 git clone https://github.com/GPUtw-ai/GPUtw-Skill.git ~/.gputw-skill
 claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- node ~/.gputw-skill/mcp/dist/stdio.mjs
+
+# or from npm, no clone needed
+claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mcp-server@latest
 ```
 
-**Any other client** (Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI):
+**Any other client** (Claude Desktop, Cursor, VS Code, Windsurf, Codex, Gemini CLI). From npm; for a clone, use `"command": "node"` with the absolute path to `mcp/dist/stdio.mjs`:
 
 ```json
 {
   "mcpServers": {
     "gputw": {
-      "command": "node",
-      "args": ["/absolute/path/to/GPUtw-Skill/mcp/dist/stdio.mjs"],
+      "command": "npx",
+      "args": ["-y", "@gputw/mcp-server@latest"],
       "env": { "GPUTW_API_KEY": "gputw_live_xxx" }
     }
   }
@@ -40,6 +43,7 @@ Get a key from the GPUtw dashboard → **API Keys**. Use the narrowest preset th
 
 - **Claude Code plugin:** run `/plugin marketplace update gputw`, then go to `/plugin` → **Installed** → `gputw` → **Update now** (or run `claude plugin update gputw@gputw` in a shell). Apply it with `/reload-plugins` or a new session. Plugins from GitHub marketplaces don't auto-update unless you turn it on under `/plugin` → **Marketplaces** → `gputw` → **Enable auto-update**.
 - **Clone install (any client):** run `git -C ~/.gputw-skill pull`, then restart the client (in Claude Code, reconnect from `/mcp`). The server runs straight from `mcp/dist/stdio.mjs`, so the pull is the whole update.
+- **npm (`npx -y @gputw/mcp-server@latest`):** restart the client so `npx` launches the server again. If it keeps starting an old version, pin the version explicitly, e.g. `@gputw/mcp-server@1.1.0`, and bump it when you update.
 - **Check the running version:** the `serverInfo.version` in the initialize handshake. Release notes are on [GitHub Releases](https://github.com/GPUtw-ai/GPUtw-Skill/releases).
 
 ## Environment
