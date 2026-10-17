@@ -23,7 +23,7 @@ POST /instances/create
 |---|---|---|
 | `DEPLOYING` | 自訂映像從拉取開始計；範本部署成功後才開始 | 輪詢 `/status`；可 `stop` / `delete` |
 | `RUNNING` | **計費中** | exec、ports、exposures、pod restart、stop、delete、reconfigure |
-| `STOPPED` | 不計費 | restart（同機或換機）、reconfigure、delete |
+| `STOPPED` | 不計費；`/workspace` 已刪除 | restart（同機或換機）、reconfigure、delete |
 | `FAILED` | 不計費（部署逾時不收費） | 讀 `/logs?previous=1`、`/events`、startup log；restart / delete |
 | `TERMINATED` | 不計費 | 不再出現在 `GET /instances` |
 | `INSUFFICIENT_FUNDS` | 已暫停 | 儲值（控制台）後重啟 |
@@ -155,21 +155,23 @@ curl -fsS -X POST "$API/instances/create" -A "my-automation/1.0" \
 
 | 動作 | 呼叫 | 條件 / 效果 |
 |---|---|---|
-| 停止 | `POST /instances/stop` `{ "instanceId": "…" }` | 任何狀態（`TERMINATED` 除外）；停止計費、保留紀錄與 `/workspace` 可重啟 |
-| 刪除 | `POST /instances/delete` `{ "instanceId": "…" }` | 終止並移除；`/workspace` 消失、`/vault` 不受影響 |
+| 停止 | `POST /instances/stop` `{ "instanceId": "…" }` | 任何狀態（`TERMINATED` 除外）；停止計費、保留紀錄與設定可重啟。**容器移除、`/workspace` 刪除**，只有 `/vault` 留下 |
+| 刪除 | `POST /instances/delete` `{ "instanceId": "…" }` | 終止並移除紀錄；`/workspace` 消失、`/vault` 不受影響 |
 | 重啟 | `POST /instances/{id}/restart` `{ "mode": "same" }` 或 `{ "mode": "alternative", "nodeId": "…" }`（可加 `templateId`/`template`, `bandwidthMbps`, `shmSizeGb`） | 須 `STOPPED` / `FAILED`；`alternative` 會建立**新**執行個體（`201`）。先用 `GET /instances/{id}/restart-options` 看原機是否可用與替代方案；此端點也接受 `instances:create` |
 | 重新設定 | `PUT /instances/{id}` `{ "templateId"?, "template"?, "bandwidthMbps"?, "shmSizeGb"? }` | 須 `RUNNING`/`STOPPED`/`FAILED`；重建容器 |
-| 容器原地重建 | `POST /instances/{id}/pod/restart` | 保留映像、連接埠、`/workspace`；自訂映像不適用（憑證已清除，改用 `PUT` 指定範本或重新部署） |
+| 容器重建 | `POST /instances/{id}/pod/restart` | 以相同映像與連接埠重建容器；**`/workspace` 會清空**。自訂映像不適用（憑證已清除，改用 `PUT` 指定範本或重新部署） |
 
 停止/刪除已終止的執行個體 → `400 Instance already terminated`。
 
-> 💡 停止 vs 刪除：「之後可能再用」→ stop；「不再需要這筆紀錄與 workspace」→ delete。兩者都會停止運算計費。
+> ⚠️ **停止、刪除、重啟、重新設定、`pod/restart` 都會清空 `/workspace`**——只有 `/vault` 會留下。停止前把要保留的東西複製到 `/vault`。
+>
+> 💡 停止 vs 刪除：「之後要用同樣設定重開」→ stop（保留紀錄與設定）；「不再需要這筆紀錄」→ delete。兩者都會停止運算計費，也都會刪除 `/workspace`。
 
 ## 儲存：`/workspace` vs `/vault`
 
 | 路徑 | 生命週期 | 用途 |
 |---|---|---|
-| `/workspace` | 跟著執行個體與所在機器；刪除即消失 | 環境建置、解壓、每個 epoch 都讀的資料（本機磁碟快） |
+| `/workspace` | 只活在目前這個容器；**停止、刪除、重啟、重新設定都會消失** | 環境建置、解壓、每個 epoch 都讀的資料（本機磁碟快） |
 | `/vault` | 持久化、跨執行個體共享、獨立於 GPU 機器 | 資料集、checkpoint、模型權重、輸出。「丟了要重載或重訓的東西放 `/vault`」 |
 
 ### OOM 與主機故障（來源：Status & OOM 頁）

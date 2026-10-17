@@ -113,7 +113,7 @@ curl -fsS -A my-automation/1.0 -H "Authorization: Bearer $KEY" "$API/instances/$
 
 ## `POST /instances/{id}/pod/restart` — 原地重建容器（`instances:manage`）
 
-保留映像、連接埠與 `/workspace`，重新建立容器；計費結算、連接埠同步、SSH 都照常處理。自訂映像不能這樣重啟（其 registry 憑證在停止/失敗時已清除）——改用 `PUT /instances/{id}` 指定範本，或重新部署。
+以相同映像與連接埠重新建立容器；計費結算、連接埠同步、SSH 都照常處理。**`/workspace` 會清空**（只有 `/vault` 保留），先把要留的東西放 `/vault`。自訂映像不能這樣重啟（其 registry 憑證在停止/失敗時已清除）——改用 `PUT /instances/{id}` 指定範本，或重新部署。
 
 ## 在 Notebook 裡看 GPU（來源：Monitoring 頁）
 

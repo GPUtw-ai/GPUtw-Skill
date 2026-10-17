@@ -45,12 +45,12 @@
 | GET | `/instances/{id}` | `instances:read` | [04](../guides/04-instance-runtime.md) | 單一執行個體，欄位與列表相同 | docs |
 | POST | `/instances/create` | `instances:create` | [03](../guides/03-instances-lifecycle.md) | 部署。`nodeId` + (`templateId` ｜ `template` ｜ `customImage`) 三選一，選填 `bandwidthMbps`, `shmSizeGb`, `ports[]` → `201`。**無冪等鍵**，不認得的欄位會被忽略（沒有 label / metadata） | site, docs |
 | POST | `/instances/validate-image` | `instances:create` | [03](../guides/03-instances-lifecycle.md) | 部署前檢查自訂映像可否拉取（`dockerImage`, 選填 `registryAuth`） | docs (scope 說明) |
-| POST | `/instances/stop` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | `{ "instanceId": "<uuid>" }`；停止即停止計費，保留紀錄可重啟 | site, docs |
+| POST | `/instances/stop` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | `{ "instanceId": "<uuid>" }`；停止即停止計費，保留紀錄可重啟；**`/workspace` 刪除**，只有 `/vault` 留下 | site, docs |
 | POST | `/instances/delete` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | `{ "instanceId": "<uuid>" }`；終止並移除執行個體 | docs |
 | GET | `/instances/{id}/restart-options` | `instances:read` | [03](../guides/03-instances-lifecycle.md) | 已停止/失敗的執行個體：原機是否可重啟、有哪些替代機器 | dashboard |
 | POST | `/instances/{id}/restart` | `instances:manage`（或 `instances:create`） | [03](../guides/03-instances-lifecycle.md) | `{ "mode": "same" }` 同機重啟（`200`）或 `{ "mode": "alternative", "nodeId": "…" }` 換機（建立新執行個體 → `201`） | dashboard |
 | PUT | `/instances/{id}` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | 重新設定（換範本 / 頻寬 / shm）；會重建容器 | docs |
-| POST | `/instances/{id}/pod/restart` | `instances:manage` | [04](../guides/04-instance-runtime.md) | 原地重建容器，保留映像、連接埠與 `/workspace`；自訂映像不適用 | docs |
+| POST | `/instances/{id}/pod/restart` | `instances:manage` | [04](../guides/04-instance-runtime.md) | 重建容器（相同映像與連接埠）；**`/workspace` 清空**；自訂映像不適用 | docs |
 
 ## 執行個體 — 即時狀態（runtime）
 

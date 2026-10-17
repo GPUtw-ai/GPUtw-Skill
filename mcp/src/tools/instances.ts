@@ -4,7 +4,6 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { projectInstance } from '../project.js';
 import {
   DESTRUCTIVE,
-  IDEMPOTENT_WRITE,
   READ_ONLY,
   WRITE,
   guard,
@@ -206,11 +205,11 @@ export function registerInstanceTools(server: McpServer, rt: ToolRuntime): void 
     {
       title: 'Stop instance',
       description:
-        'Stop an instance and end compute billing, keeping the record so it can be restarted. ' +
-        'Requires instances:manage. The /workspace disk is kept; use this rather than delete when ' +
-        'the user may come back to it.',
+        'Stop an instance and end compute billing, keeping the record and its settings so it can be ' +
+        'restarted. Requires instances:manage. The container is removed and /workspace is DELETED - ' +
+        'only /vault survives, so anything the user needs must already be in /vault. Confirm first.',
       inputSchema: { instanceId: z.string() },
-      annotations: IDEMPOTENT_WRITE,
+      annotations: DESTRUCTIVE,
     },
     async ({ instanceId }) =>
       guard(async () => {
@@ -218,7 +217,7 @@ export function registerInstanceTools(server: McpServer, rt: ToolRuntime): void 
           method: 'POST',
           body: { instanceId },
         });
-        return ok(projectInstance(d), 'Stopped; compute billing has ended.');
+        return ok(projectInstance(d), 'Stopped; compute billing has ended. /workspace is gone; /vault is unaffected.');
       })
   );
 
@@ -227,9 +226,9 @@ export function registerInstanceTools(server: McpServer, rt: ToolRuntime): void 
     {
       title: 'Delete instance',
       description:
-        'Terminate and remove an instance permanently. Requires instances:manage. The /workspace ' +
-        'disk is destroyed - anything the user needs must already be in /vault, which is unaffected. ' +
-        'Prefer stop-instance when the instance may be needed again. Confirm with the user first.',
+        'Terminate and remove an instance permanently, including its record. Requires instances:manage. ' +
+        '/workspace is destroyed (as it is on stop) - anything the user needs must already be in /vault, ' +
+        'which is unaffected. Prefer stop-instance only to keep the record for a restart. Confirm first.',
       inputSchema: { instanceId: z.string() },
       annotations: DESTRUCTIVE,
     },

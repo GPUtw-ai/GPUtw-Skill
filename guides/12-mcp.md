@@ -95,7 +95,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 3. **`get-instance-resources` 先看 `usage.source`**。`none` = 沒有遙測、所有指標是 `null`——**不是閒置**。
 4. **結束一定關機**：`stop-instance`（可能再用）或 `delete-instance`（不再需要）。`RUNNING` 就在扣點數。
 5. **`exec-in-instance` 的 `command` 是 argv 陣列**，中間沒有 shell；要管線就 `["sh","-c","…"]`。它是 root 且留稽核紀錄。
-6. **`delete-instance` 標記為 destructive**，會摧毀 `/workspace`。先跟使用者確認；要保留的東西應該已經在 `/vault`。
+6. **`stop-instance` 與 `delete-instance` 都標記為 destructive**，兩者都會摧毀 `/workspace`。先跟使用者確認；要保留的東西應該已經在 `/vault`。
 7. **工具回傳的是投影過的欄位**（目錄一筆原始紀錄約 50 個欄位，全丟給模型會吃掉上下文）。要完整紀錄請直接打 REST API。
 
 ## 錯誤訊息

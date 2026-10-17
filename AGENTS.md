@@ -65,7 +65,7 @@
 11. 流程結尾必定 `stop` / `delete`（`finally`），並提醒 `RUNNING` 持續扣點數
 12. 自訂映像不用 `:latest`；先 `validate-image`
 13. `403` 不重試；`429` 依 `RateLimit-Reset` 退避；`402` 提示儲值
-14. `/workspace` 不持久；要保留的放 `/vault`
+14. `/workspace` 不持久（停止也會刪除）；要保留的放 `/vault`
 15. 只描述公開 API 契約與官方文件內容，不描述內部架構
 16. 生成的程式碼加註來源 URL 與日期，並列出所需 scopes / preset
 17. MCP 工具不改變任何規則；工具清單沒有 `exec-in-instance` 是預設關閉，不是故障

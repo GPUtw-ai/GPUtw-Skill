@@ -82,7 +82,7 @@ ComfyUI 類別目錄：`checkpoints`, `diffusion_models`, `text_encoders`, `vae`
 ## F. 安全關機檢查表（任何自動化結束前）
 
 - [ ] `GET /instances/active` 沒有意外的 `RUNNING`
-- [ ] 需要保留的輸出已在 `/vault`（`/workspace` 會隨刪除消失）
+- [ ] 需要保留的輸出已在 `/vault`（`/workspace` 在停止或刪除時都會消失）
 - [ ] `POST /instances/stop`（可能再用）或 `POST /instances/delete`（不再需要）
 - [ ] 臨時 `instances:exec` 金鑰已 `DELETE /api-keys/{id}`
 - [ ] Vault 的 `recovered/` 資料夾已檢視並清理（7 天後計費）

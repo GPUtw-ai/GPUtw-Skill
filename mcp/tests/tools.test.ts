@@ -34,7 +34,7 @@ describe('tool registration', () => {
     expect(byName.get('list-gpus')).toMatchObject({ readOnlyHint: true });
     expect(byName.get('create-instance')).toMatchObject({ readOnlyHint: false });
     expect(byName.get('delete-instance')).toMatchObject({ readOnlyHint: false, destructiveHint: true });
-    expect(byName.get('stop-instance')).toMatchObject({ idempotentHint: true });
+    expect(byName.get('stop-instance')).toMatchObject({ idempotentHint: true, destructiveHint: true });
   });
 
   it('gives every tool a description, so a client can route without guessing', async () => {

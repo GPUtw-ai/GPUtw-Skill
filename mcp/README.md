@@ -63,7 +63,7 @@ Not yet covered (use the REST API): ports and exposures, API-key management, bil
 - **Read `usage.source` on `get-instance-resources` before trusting a number.** `none` means there is no telemetry and every metric is `null`; that is not the same as an idle GPU.
 - **Responses are projected.** A catalogue record carries ~50 fields; the tools return the decision-relevant subset so the model's context is not spent on marketing copy.
 - **Errors are translated into actions** — which scope is missing, that credit is short, that a machine was taken, or that a non-envelope response means the request never reached the API (usually a missing `User-Agent`).
-- **`delete-instance` destroys `/workspace`.** `/vault` is untouched.
+- **`stop-instance` and `delete-instance` both destroy `/workspace`.** `/vault` is untouched.
 
 > **`claude plugin details` shows "MCP servers (0)".** That count only recognises a `.mcp.json` at the plugin root, and this plugin declares the server inline in `plugin.json` on purpose — a file at the repository root is *also* read as a project-scope MCP config by anyone working in a clone, where `CLAUDE_PLUGIN_ROOT` is undefined. Trust `claude mcp list`: `plugin:gputw:gputw … ✔ Connected` is the working state.
 

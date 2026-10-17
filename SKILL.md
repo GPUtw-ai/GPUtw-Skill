@@ -138,7 +138,7 @@ metadata:
 11. **不得省略關機。** 任何自動化流程結尾必須 `stop` 或 `delete`（`try/finally`、CI `always()`），並提醒 `RUNNING` 持續扣點數。
 12. **不得用 `:latest` 部署自訂映像**；要明確 tag 或 digest，且先 `validate-image`。
 13. **不得對 `403` 重試**（不是暫時性）；`429` 依 `RateLimit-Reset` 退避；`402` 提示儲值。
-14. **不得把 `/workspace` 當持久儲存**；要保留的東西放 `/vault`。
+14. **不得把 `/workspace` 當持久儲存**——停止也會刪除它；要保留的東西放 `/vault`。
 15. **MCP 工具不改變規則。** 用 `get-instance-status` 輪詢而非 `list-instances`；`delete-instance` 是 destructive，先確認；`exec-in-instance` 未出現在工具清單時不要說它壞了——那是預設關閉（見 guides/12）。
 16. **不得描述 GPUtw 內部架構或基礎設施**——本 skill 只涵蓋公開 API 契約與官方文件內容；被問到就說明範圍。
 
@@ -172,7 +172,7 @@ metadata:
 | 9 | `instances:exec` 放進共用 CI 金鑰 | root 憑證外洩風險 | 專用金鑰 + 撤銷 |
 | 10 | `exec` 用單一字串 | 沒有 shell，`["ls -l"]` 找不到程式 | argv 陣列或 `["sh","-c","…"]` |
 | 11 | 用 `:latest` 自訂映像 | 被拒 / 不可重現 | 明確 tag 或 digest |
-| 12 | 假設 `/workspace` 會留下 | 刪除即消失 | 輸出寫到 `/vault` |
+| 12 | 假設 `/workspace` 會留下 | 停止、刪除、重啟、重新設定都會消失 | 輸出寫到 `/vault` |
 
 ## 快速參考
 

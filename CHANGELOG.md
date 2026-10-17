@@ -37,5 +37,6 @@
 - **工作區磁碟**：`diskSizeGb` / `rentableStorageGb` 是 GiB；由機器決定、無法在 `create` 指定；限制涵蓋 `/workspace` 與容器其他可寫路徑，不含映像唯讀層；`/resources` 沒有磁碟用量欄位，非 `RUNNING` 時 `usage` 全為 `null`
 - **Vault**：`GET /vault/stats` 欄位表（GiB、計費一律新台幣：單價看 `priceNtdPerGbHour`，`vaultStorageRateHr` 是舊式 USD 表示、`usedGb` 為每小時快取）；配額檢查用即時用量，上傳與伺服器端下載的進行中保留量互不計入
 - **容量衝突**：機器依 GPU 數共用；`409` 訊息更新為 `This machine has no free GPUs right now…` / `Not enough free GPUs on this machine…`；新增 `403 Instance limit reached…`
+- **`/workspace` 生命週期**：停止、刪除、重啟、重新設定與 `pod/restart` 都會清空 `/workspace`，只有 `/vault` 保留（先前誤寫為停止會保留）；MCP `stop-instance` 改標 destructive
 - **所有權**：他人或不存在的 `/instances/{id}` 一律 `404`
 - `create` 的 `201` 回應只含基本欄位；`node`、`exposures`、Web UI 欄位改用 `GET /instances/{id}`

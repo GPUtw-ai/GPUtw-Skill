@@ -21954,23 +21954,23 @@ function registerInstanceTools(server, rt) {
     "stop-instance",
     {
       title: "Stop instance",
-      description: "Stop an instance and end compute billing, keeping the record so it can be restarted. Requires instances:manage. The /workspace disk is kept; use this rather than delete when the user may come back to it.",
+      description: "Stop an instance and end compute billing, keeping the record and its settings so it can be restarted. Requires instances:manage. The container is removed and /workspace is DELETED - only /vault survives, so anything the user needs must already be in /vault. Confirm first.",
       inputSchema: { instanceId: external_exports.string() },
-      annotations: IDEMPOTENT_WRITE
+      annotations: DESTRUCTIVE
     },
     async ({ instanceId }) => guard(async () => {
       const d = await rt.client.request("/instances/stop", {
         method: "POST",
         body: { instanceId }
       });
-      return ok(projectInstance(d), "Stopped; compute billing has ended.");
+      return ok(projectInstance(d), "Stopped; compute billing has ended. /workspace is gone; /vault is unaffected.");
     })
   );
   server.registerTool(
     "delete-instance",
     {
       title: "Delete instance",
-      description: "Terminate and remove an instance permanently. Requires instances:manage. The /workspace disk is destroyed - anything the user needs must already be in /vault, which is unaffected. Prefer stop-instance when the instance may be needed again. Confirm with the user first.",
+      description: "Terminate and remove an instance permanently, including its record. Requires instances:manage. /workspace is destroyed (as it is on stop) - anything the user needs must already be in /vault, which is unaffected. Prefer stop-instance only to keep the record for a restart. Confirm first.",
       inputSchema: { instanceId: external_exports.string() },
       annotations: DESTRUCTIVE
     },
