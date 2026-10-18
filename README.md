@@ -1,6 +1,6 @@
 # GPUtw Skill
 
-> **V1.1.1** ｜ GPUtw（https://gputw.ai）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。**現在含官方 MCP 伺服器（18 個工具）**。
+> **V1.1.1** ｜ GPUtw.ai（ https://gputw.ai ）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。**現在含官方 MCP 伺服器（18 個工具）**。
 
 **English:** An [Agent Skill](https://agentskills.io) for the GPUtw GPU cloud (Taiwan). Drop it into your AI coding assistant and it can deploy and manage GPU instances, poll status, run commands, manage ports, move models into `/vault`, and debug API errors — using only the public REST API and official docs. Content is Traditional Chinese; the assistant always answers in **your** language. See [Install](#安裝) below.
 
