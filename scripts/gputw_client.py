@@ -38,6 +38,34 @@ USER_AGENT = "gputw-skill-client/1.0"
 DEFAULT_API = "https://api.gputw.ai/api"
 DEFAULT_TRANSFER = "https://upload.gputw.ai"
 TERMINAL = {"FAILED", "INSUFFICIENT_FUNDS", "STOPPED", "TERMINATED"}
+# How long one call may spend waiting out 429s before it gives up and raises.
+RATE_LIMIT_MAX_WAIT_S = float(os.environ.get("GPUTW_RATE_LIMIT_MAX_WAIT", "300"))
+
+
+def _retryable_429(status: int, headers) -> bool:
+    """A spent rate-limit window, worth waiting out - not a standing refusal such as
+    "3 vault downloads already running", which also answers 429 but will not clear by
+    waiting a few seconds. The API's limiter marks a spent window RateLimit-Remaining: 0;
+    an edge limiter sends Retry-After only."""
+    if status != 429 or headers is None:
+        return False
+    remaining = headers.get("RateLimit-Remaining")
+    if remaining is not None:
+        return remaining.strip() == "0"
+    return headers.get("Retry-After") is not None
+
+
+def _retry_after_s(headers, attempt: int) -> float:
+    """Seconds to wait after a 429: the server's RateLimit-Reset / Retry-After when it
+    sends one, else exponential backoff. Never under 1 s, never over 60 s per try."""
+    for name in ("RateLimit-Reset", "Retry-After"):
+        v = headers.get(name) if headers is not None else None
+        if v:
+            try:
+                return min(60.0, max(1.0, float(v)))
+            except ValueError:
+                pass
+    return min(60.0, 2.0 ** attempt)
 
 
 class GputwError(RuntimeError):
@@ -72,13 +100,28 @@ class Client:
             headers["Content-Type"] = "application/json"
         elif content_type:
             headers["Content-Type"] = content_type
-        req = urllib.request.Request(url, data=data, method=method, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                text = resp.read().decode()
-                status = resp.status
-        except urllib.error.HTTPError as e:
-            text, status = e.read().decode(errors="replace"), e.code
+        # A 429 is refused BEFORE the API does anything, so resending the same request
+        # (even a create or a stop) cannot double-apply it. Wait out the window the
+        # server names and try again, instead of failing the caller's step.
+        deadline = time.monotonic() + RATE_LIMIT_MAX_WAIT_S
+        attempt = 0
+        while True:
+            req = urllib.request.Request(url, data=data, method=method, headers=headers)
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    text = resp.read().decode()
+                    status = resp.status
+                    resp_headers = resp.headers
+            except urllib.error.HTTPError as e:
+                text, status, resp_headers = e.read().decode(errors="replace"), e.code, e.headers
+            if not _retryable_429(status, resp_headers):
+                break
+            wait = _retry_after_s(resp_headers, attempt)
+            if time.monotonic() + wait > deadline:
+                break
+            print(f"gputw: rate limited, retrying in {wait:.0f}s", file=sys.stderr)
+            time.sleep(wait)
+            attempt += 1
         try:
             env = json.loads(text)
         except ValueError:

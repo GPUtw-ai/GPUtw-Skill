@@ -19,6 +19,35 @@ export interface ClientOptions {
   transferBase?: string;
   userAgent: string;
   fetchImpl?: FetchLike;
+  /** Longest one call may spend waiting out 429s before it gives up (default 5 minutes). */
+  rateLimitMaxWaitMs?: number;
+  /** Injected in tests so retries do not really wait. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Whether a 429 is a spent rate-limit window (worth waiting out) rather than a
+ * standing refusal such as "3 vault downloads already running", which also answers
+ * 429 but will not clear by waiting a few seconds. The API's limiter says its window
+ * is spent with RateLimit-Remaining: 0; an edge limiter sends Retry-After only.
+ */
+export function isRetryable429(res: Pick<Response, 'status' | 'headers'>): boolean {
+  if (res.status !== 429) return false;
+  const remaining = res.headers.get('RateLimit-Remaining');
+  if (remaining !== null) return remaining.trim() === '0';
+  return res.headers.get('Retry-After') !== null;
+}
+
+/**
+ * Milliseconds to wait after a 429: the server's RateLimit-Reset / Retry-After (seconds)
+ * when present, else exponential backoff. Clamped to 1-60 s per attempt.
+ */
+export function retryAfterMs(res: Pick<Response, 'headers'>, attempt: number): number {
+  for (const name of ['RateLimit-Reset', 'Retry-After']) {
+    const v = Number(res.headers.get(name));
+    if (res.headers.get(name) && Number.isFinite(v)) return Math.min(60_000, Math.max(1_000, v * 1000));
+  }
+  return Math.min(60_000, 1000 * 2 ** attempt);
 }
 
 interface RequestOptions {
@@ -43,6 +72,8 @@ export class GputwClient {
   private readonly transferBase: string;
   private readonly userAgent: string;
   private readonly fetchImpl: FetchLike;
+  private readonly rateLimitMaxWaitMs: number;
+  private readonly sleep: (ms: number) => Promise<void>;
   /** Memoised transfer-host probe: null = not yet probed. */
   private transferResolved: string | null = null;
 
@@ -52,6 +83,8 @@ export class GputwClient {
     this.transferBase = (opts.transferBase ?? DEFAULT_TRANSFER_BASE).replace(/\/+$/, '');
     this.userAgent = opts.userAgent;
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+    this.rateLimitMaxWaitMs = opts.rateLimitMaxWaitMs ?? 300_000;
+    this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
   get hasKey(): boolean {
@@ -82,16 +115,28 @@ export class GputwClient {
     }
 
     const url = `${base ?? this.apiBase}${path}`;
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), timeoutMs);
+    // A 429 is refused BEFORE the API does anything, so resending the same request -
+    // even a create or a stop - cannot apply it twice. Wait out the window the server
+    // names and retry, rather than failing an agent's step on a burst.
+    let waited = 0;
     let res: Response;
-    try {
-      res = await this.fetchImpl(url, { method, headers, body: payload, signal: ac.signal });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new GputwApiError(0, `network error contacting ${redactKeys(url)}: ${msg}`, false);
-    } finally {
-      clearTimeout(timer);
+    for (let attempt = 0; ; attempt++) {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), timeoutMs);
+      try {
+        res = await this.fetchImpl(url, { method, headers, body: payload, signal: ac.signal });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new GputwApiError(0, `network error contacting ${redactKeys(url)}: ${msg}`, false);
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!isRetryable429(res)) break;
+      const wait = retryAfterMs(res, attempt);
+      if (waited + wait > this.rateLimitMaxWaitMs) break;
+      waited += wait;
+      await res.body?.cancel().catch(() => undefined);
+      await this.sleep(wait);
     }
 
     if (opts.rawResponse) {

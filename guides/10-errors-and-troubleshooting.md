@@ -80,7 +80,7 @@ req.add_header("User-Agent", "my-automation/1.0")   # 必要
 
 ## 速率限制
 
-每使用者（金鑰）計數，回 `RateLimit-*` 標準 header。已知額度（每 5 分鐘）：執行個體動作 60、映像驗證 120、Vault 變更 600、分段 PUT 5000、儲值 5。遇 `429` 讀 `RateLimit-Reset` 後退避；不要對 `403` 重試（那不是暫時性的）。
+每使用者（金鑰）計數，回 `RateLimit-*` 標準 header。已知額度（每 5 分鐘，2026-10-21 起）：部署與設定 1200、`exec` 6000（獨立額度）、停止／刪除 1200（獨立額度，不會被 `exec` 或部署耗盡）、映像驗證 600、Vault 變更 3000、分段 PUT 20000、儲值 20。`429` 且 `RateLimit-Remaining: 0` 代表額度用完：讀 `RateLimit-Reset` 等待後重送同一請求即可（被拒的請求沒有執行，重送不會重複套用）——`scripts/gputw_client.py` 與 MCP server 已自動這樣做，最多等 5 分鐘。`RateLimit-Remaining` 不為 0 的 `429`（例如已有 3 個 Vault 下載進行中）不會因等待而解除，不要重試。不要對 `403` 重試（那不是暫時性的）。
 
 ## 症狀 → 原因
 
