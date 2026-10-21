@@ -21496,7 +21496,7 @@ What to do: ${hint}` : head;
     }
     if (this.status === 413) return "the file exceeds the Vault quota. Free space or request a larger quota.";
     if (this.status === 429) {
-      return "rate limited. Back off and retry after the RateLimit-Reset header; do not retry immediately.";
+      return "rate limited, and still limited after waiting it out automatically for several minutes. Slow down (fewer parallel calls) before retrying.";
     }
     if (this.status === 503) return "the selected machine is not schedulable - pick another from list-available-nodes.";
     if (this.status === 504) return "the command exceeded its timeout. Raise timeoutMs (max 120000) or split the work.";
@@ -21512,12 +21512,27 @@ function truncate(s, n) {
 // src/client.ts
 var DEFAULT_API_BASE = "https://api.gputw.ai/api";
 var DEFAULT_TRANSFER_BASE = "https://upload.gputw.ai";
+function isRetryable429(res) {
+  if (res.status !== 429) return false;
+  const remaining = res.headers.get("RateLimit-Remaining");
+  if (remaining !== null) return remaining.trim() === "0";
+  return res.headers.get("Retry-After") !== null;
+}
+function retryAfterMs(res, attempt) {
+  for (const name of ["RateLimit-Reset", "Retry-After"]) {
+    const v = Number(res.headers.get(name));
+    if (res.headers.get(name) && Number.isFinite(v)) return Math.min(6e4, Math.max(1e3, v * 1e3));
+  }
+  return Math.min(6e4, 1e3 * 2 ** attempt);
+}
 var GputwClient = class {
   apiBase;
   apiKey;
   transferBase;
   userAgent;
   fetchImpl;
+  rateLimitMaxWaitMs;
+  sleep;
   /** Memoised transfer-host probe: null = not yet probed. */
   transferResolved = null;
   constructor(opts) {
@@ -21526,6 +21541,8 @@ var GputwClient = class {
     this.transferBase = (opts.transferBase ?? DEFAULT_TRANSFER_BASE).replace(/\/+$/, "");
     this.userAgent = opts.userAgent;
     this.fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+    this.rateLimitMaxWaitMs = opts.rateLimitMaxWaitMs ?? 3e5;
+    this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
   get hasKey() {
     return Boolean(this.apiKey);
@@ -21550,16 +21567,25 @@ var GputwClient = class {
       headers["Content-Type"] = "application/json";
     }
     const url = `${base ?? this.apiBase}${path}`;
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), timeoutMs);
+    let waited = 0;
     let res;
-    try {
-      res = await this.fetchImpl(url, { method, headers, body: payload, signal: ac.signal });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new GputwApiError(0, `network error contacting ${redactKeys(url)}: ${msg}`, false);
-    } finally {
-      clearTimeout(timer);
+    for (let attempt = 0; ; attempt++) {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), timeoutMs);
+      try {
+        res = await this.fetchImpl(url, { method, headers, body: payload, signal: ac.signal });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new GputwApiError(0, `network error contacting ${redactKeys(url)}: ${msg}`, false);
+      } finally {
+        clearTimeout(timer);
+      }
+      if (!isRetryable429(res)) break;
+      const wait = retryAfterMs(res, attempt);
+      if (waited + wait > this.rateLimitMaxWaitMs) break;
+      waited += wait;
+      await res.body?.cancel().catch(() => void 0);
+      await this.sleep(wait);
     }
     if (opts.rawResponse) {
       if (!res.ok) throw new GputwApiError(res.status, await safeText(res), false);

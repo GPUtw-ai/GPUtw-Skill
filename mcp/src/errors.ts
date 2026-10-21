@@ -81,7 +81,7 @@ export class GputwApiError extends Error {
     }
     if (this.status === 413) return 'the file exceeds the Vault quota. Free space or request a larger quota.';
     if (this.status === 429) {
-      return 'rate limited. Back off and retry after the RateLimit-Reset header; do not retry immediately.';
+      return 'rate limited, and still limited after waiting it out automatically for several minutes. Slow down (fewer parallel calls) before retrying.';
     }
     if (this.status === 503) return 'the selected machine is not schedulable - pick another from list-available-nodes.';
     if (this.status === 504) return 'the command exceeded its timeout. Raise timeoutMs (max 120000) or split the work.';
