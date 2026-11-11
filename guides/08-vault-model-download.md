@@ -1,6 +1,6 @@
 # 08 · 伺服器端模型下載：網址 / Hugging Face → `/vault`
 
-> SNAPSHOT 2026-09 ｜ 來源：公開 Vault model downloader API 文件 ｜ 生成程式碼前請 web_fetch https://gputw.ai/zh-TW/docs/vault 確認最新規格
+> SNAPSHOT 2026-11 ｜ 來源：公開 Vault model downloader API 文件 ｜ 生成程式碼前請 web_fetch https://gputw.ai/zh-TW/docs/vault 確認最新規格
 
 由**伺服器**替你抓檔案直接放進 `/vault`——不需要執行中的執行個體、shell 或本機副本。最適合 ComfyUI 的底模：放在 `models/<category>/` 下就會出現在 ComfyUI 的選單。控制台的「從網址下載」按鈕（Vault 頁與 ComfyUI 新手面板）就是用這個 API。
 
@@ -11,6 +11,8 @@
 1. `POST /vault/downloads`，body `{ "source": "<url 或 hf 參照>", "targetPath": "models/checkpoints/model.safetensors", "hfToken": "<選填>" }`
    → `202` `{ id, url, targetPath, status, bytesDownloaded, totalBytes, error, createdAt, updatedAt }`。下載在背景進行。
 2. 輪詢 `GET /vault/downloads/{id}` 直到 `status` 是 `completed`（或 `failed` / `canceled`）。`bytesDownloaded` 與 `totalBytes`（伺服器有回 Content-Length 才有）可做進度條。狀態值：`pending` → `downloading` → `completed` | `failed` | `canceled`。
+
+> ⚠️ **`failed` 不一定是最終結果。** 連線中途斷掉時，伺服器會從已下載的部分自動續傳，最多 5 次（約 30 秒、1、2、4、8 分鐘後）；GPUtw 服務重啟時，進行中的下載也會自動接續。這段期間同一個 `id` 會短暫顯示 `status: "failed"`，`error` 含 `retrying automatically (n/5)` 或 `resuming`，之後回到 `pending` / `downloading`。輪詢時要把這種 `failed` 當成「還在進行」；`error` 不含這兩個字串的 `failed` 才是真的失敗。取消、大小 / 配額錯誤、HTTP 錯誤（例如 404、gated 401）與 6 小時上限不會自動重試。
 3. `DELETE /vault/downloads/{id}` 取消進行中的下載；`GET /vault/downloads` 列出最近的下載。
 
 ### `source` 格式
@@ -41,7 +43,8 @@ ID=$(curl -fsS -X POST "$API/vault/downloads" -A "$UA" \
 
 while :; do
   STATUS=$(curl -fsS "$API/vault/downloads/$ID" -A "$UA" -H "Authorization: Bearer $KEY" \
-    | python3 -c 'import sys,json;print(json.load(sys.stdin)["data"]["status"])')
+    | python3 -c 'import sys,json;d=json.load(sys.stdin)["data"];e=d.get("error") or ""
+print("retrying" if d["status"]=="failed" and ("retrying automatically" in e or "resuming" in e) else d["status"])')
   echo "status: $STATUS"
   [ "$STATUS" = completed ] && break
   { [ "$STATUS" = failed ] || [ "$STATUS" = canceled ]; } && exit 1

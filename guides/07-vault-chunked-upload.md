@@ -1,6 +1,6 @@
 # 07 · Vault 分段續傳上傳（任意大小，不需執行個體）
 
-> SNAPSHOT 2026-09 ｜ 來源：公開 Vault chunked upload API 文件、傳輸主機說明、https://gputw.ai/en/docs/vault ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
+> SNAPSHOT 2026-11 ｜ 來源：公開 Vault chunked upload API 文件、傳輸主機說明、https://gputw.ai/en/docs/vault ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
 
 透過 HTTPS 把任意大小的檔案放進 `/vault`——不需要執行中的執行個體，單檔最大 2 TB。控制台的 Vault 頁面對 > ~90 MB 的檔案自動用這個 API。
 
@@ -26,7 +26,9 @@ Vault 傳輸另有專用主機 **`https://upload.gputw.ai`**：沒有 100 MB 請
 3. `POST /vault/uploads/{uploadId}/complete` → `202` `{ uploadId, status: "assembling" }`。伺服器串接各段（有給 `sha256` 就驗證）。
 4. 輪詢 `GET /vault/uploads/{uploadId}` 直到 `status` 是 `completed`（或 `failed`，附 `error`）。狀態值：`pending` → `assembling` → `completed` | `failed` | `aborted`。
 
-續傳：`GET /vault/uploads/{uploadId}` 回傳 `receivedParts[]`——只補上缺的索引，再 `complete` 一次。閒置 48 小時的 session 會自動清除；`DELETE /vault/uploads/{uploadId}` 提前中止。
+續傳：`GET /vault/uploads/{uploadId}` 回傳 `receivedParts[]`——只補上缺的索引，再 `complete` 一次。
+
+**弄丟 `uploadId` 也能續傳**：對同一個 `path` 再送一次 `POST /vault/uploads`，只要 `size`、`chunkSize`（沒給就都用預設）、`sha256`（都沒給也算相同）跟原本一樣，伺服器會回傳**原本那個** session，並帶 `resumed: true` 與 `receivedParts[]`——照樣只補缺的段。條件不同時會開新 session，而**同一路徑其他未完成的 session 會被中止**（同一個檔案不要平行開兩個上傳）。閒置 48 小時的 session 會自動清除；`DELETE /vault/uploads/{uploadId}` 提前中止。
 
 ## curl
 

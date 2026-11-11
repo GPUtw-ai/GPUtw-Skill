@@ -8,7 +8,7 @@ description: >
   Use when the user mentions GPUtw, gputw.ai, renting a GPU in Taiwan, /vault, or a gputw_live_ API key.
 license: MIT
 metadata:
-  version: "1.1.1"
+  version: "1.2.0"
   homepage: https://github.com/GPUtw-ai/GPUtw-Skill
   platforms: [claude-code, codex-cli, cursor, github-copilot, gemini-cli]
 ---
@@ -26,7 +26,7 @@ metadata:
 
 ## 核心能力
 
-1. **部署 GPU**：目錄 → 可用機器 → 範本或自訂映像 → `create` → 輪詢 `/status` 到 `RUNNING`
+1. **部署 GPU**：目錄 → 可用機器（`fastVault` 高速 Vault 機器）→ 範本或自訂映像 → `create`（可帶自動停止計時器）→ 輪詢 `/status` 到 `RUNNING`；連結式 DGX 群組整組租用
 2. **監控與除錯**：`/resources`（含遙測來源）、`/events`、`/logs?previous=1`、`/exec`、crash loop 除錯順序
 3. **網路**：HTTP 連接埠三種存取模式、raw TCP/UDP 曝露、Web UI 交接網址
 4. **Vault**：列表、單檔上傳、分段續傳（傳輸主機 `upload.gputw.ai`）、伺服器端 URL/Hugging Face 下載
@@ -61,6 +61,11 @@ metadata:
 ├── rentalMode == CONTACT_LONG_SESSION → 不能 API 部署，Email contactEmail
 ├── 要官方範本 → GET /templates 依 name 選；arch 必須符合機器（DGX Spark = arm64）→ guides/03
 ├── 要自己的映像 → customImage（非 latest tag / digest；sshEnabled 或 Web UI 二選一）先 validate-image → guides/03 §自帶映像
+├── 工作要大量讀 /vault（每次開機載入大模型）→ /nodes/available 挑 fastVault: true → guides/02
+├── 多台 DGX Spark 一起跑（型號名稱 …Link、linkGroupSize）→ /nodes/link-offers → POST /instances/linked → guides/02、03
+├── 好幾台長得一樣 → create 帶 name / PATCH /instances/{id}/name（預設 GPU N）→ guides/03
+├── 執行中換成自己的映像、不想放掉 GPU → PUT /instances/{id} + customImage（另需 instances:create）→ guides/03
+├── 怕忘了關 → create 帶 autoStopHours / 之後 PATCH /instances/{id}/auto-stop；容器內 gputw-shutdown → guides/03 §自動停止、04
 ├── 要 Jupyter / ComfyUI 網址 → 部署後 POST /instances/{id}/access-token（90 秒）→ guides/05
 └── 部署後 → 輪詢 GET /instances/{id}/status 每 5 秒；RUNNING / FAILED / INSUFFICIENT_FUNDS 三種結束 → guides/04
 ```
@@ -70,23 +75,27 @@ metadata:
 執行個體怎麼了？
 ├── 卡在 DEPLOYING → /status 的 deployPhase + failureReason → guides/10 §部署卡住
 ├── FAILED / 一直重啟 → /status → /events → /logs?previous=1 → /startup-log → guides/10
-├── GPU 有沒有在用 → /resources；usage.source == none 表示沒遙測（null ≠ 0）→ guides/04
+├── GPU 有沒有在用 → /resources（現在）、/metrics?range=1h|6h|24h（趨勢）；usage.source == none 表示沒遙測（null ≠ 0）→ guides/04
 ├── 看全帳號 → /instances/active
 ├── 在容器裡跑指令 → /exec（argv 陣列、無 shell、root、需 instances:exec）→ guides/04
 ├── 這台花了多少 → /instances/{id}/runs → guides/09
-└── 閒置自動關機 → guides/11 §D
+├── /workspace 快滿了嗎 → 執行個體物件的 diskUsedGb / diskLimitGb（定期快照）→ guides/04
+├── 409 under maintenance / maintenanceSince → 機器維修中，不計費、資料保留，等它恢復 → guides/03
+├── 清掉一堆 STOPPED / FAILED → POST /instances/delete-stopped → guides/03
+└── 閒置自動關機 → autoStopHours / gputw-shutdown，或 guides/11 §D
 ```
 
 #### Vault
 ```
 檔案要進 /vault
 ├── 在本機、< 90 MB → POST /vault/upload（multipart）→ guides/06
-├── 在本機、大檔 / 要續傳 → 分段上傳到 upload.gputw.ai（用伺服器給的 chunkSize）→ guides/07
-├── 在網址 / Hugging Face → POST /vault/downloads（hf: 簡寫；gated 用 hfToken）→ guides/08
+├── 在本機、大檔 / 要續傳 → 分段上傳到 upload.gputw.ai（用伺服器給的 chunkSize；弄丟 uploadId 就用同參數再 init，回 resumed: true）→ guides/07
+├── 在網址 / Hugging Face → POST /vault/downloads（hf: 簡寫；gated 用 hfToken）；failed + error 含 retrying/resuming = 自動重試中 → guides/08
 ├── 已有執行中的執行個體 → scp/rsync 到 ssh.gputw.ai:2222 → guides/03
 ├── 給 CI 用 → Upload token preset（只有 vault:write）→ guides/07 §用哪把金鑰
 ├── ComfyUI 模型 → models/<category>/ → guides/08
-└── 取回 → GET /vault/download（支援 Range）/ download-zip → guides/06
+├── 取回 → GET /vault/download（支援 Range）/ download-zip → guides/06
+└── 月費多少 → /vault/stats 的 storageNtdPerMonth（已套級距）；餘額 ≤ 0 保留 10 天 → guides/06
 ```
 
 #### 帳號、帳務、團隊
@@ -110,9 +119,9 @@ metadata:
 |---|---|
 | 第一次呼叫、信封格式、User-Agent | [00](./guides/00-getting-started.md) |
 | scope、preset、金鑰 CRUD、僅限瀏覽器清單 | [01](./guides/01-auth-and-scopes.md) |
-| 目錄、可用機器、排隊 | [02](./guides/02-catalog-and-capacity.md) |
-| create / 範本 / 自訂映像 / stop / delete / restart / SSH / OOM | [03](./guides/03-instances-lifecycle.md) |
-| status / resources / events / logs / runs / exec / pod restart / notebook 監控 | [04](./guides/04-instance-runtime.md) |
+| 目錄、可用機器、`fastVault`、連結式 DGX 群組、排隊 | [02](./guides/02-catalog-and-capacity.md) |
+| create / 範本 / 自訂映像 / 自動停止 / stop / delete / delete-stopped / restart / 維護中 / 連結租用 / SSH / OOM | [03](./guides/03-instances-lifecycle.md) |
+| status / resources / 磁碟用量 / events / logs / runs / exec / 容器內關機 / pod restart / notebook 監控 | [04](./guides/04-instance-runtime.md) |
 | HTTP 連接埠、raw TCP/UDP、Web UI 網址、連接埠費 | [05](./guides/05-ports-and-exposures.md) |
 | Vault 概念、list、mkdir、單檔上傳、下載、傳輸主機 | [06](./guides/06-vault-basics.md) |
 | 分段續傳上傳 | [07](./guides/07-vault-chunked-upload.md) |
@@ -135,7 +144,7 @@ metadata:
 8. **不得寫死 `chunkSize`、範本 UUID、catalog UUID**；分段大小取自 session 回應，id 從 `/templates`、`/gpus/active` 查。
 9. **不得在傳輸主機 `upload.gputw.ai` 呼叫非傳輸路由**（`/vault/list`、`/stats`、`/downloads` → `404`）。
 10. **不得用 raw TCP/UDP 曝露無驗證的 Web UI**（Jupyter、ComfyUI）；用 HTTP 連接埠的 `private` / `unlisted`。
-11. **不得省略關機。** 任何自動化流程結尾必須 `stop` 或 `delete`（`try/finally`、CI `always()`），並提醒 `RUNNING` 持續扣點數。
+11. **不得省略關機。** 任何自動化流程結尾必須 `stop` 或 `delete`（`try/finally`、CI `always()`），並提醒 `RUNNING` 持續扣點數。替使用者部署時建議 `create` 帶 `autoStopHours` 當安全網（時間到是**停止**，`/workspace` 會清空，要先說明）。
 12. **不得用 `:latest` 部署自訂映像**；要明確 tag 或 digest，且先 `validate-image`。
 13. **不得對 `403` 重試**（不是暫時性）；`429` 依 `RateLimit-Reset` 退避；`402` 提示儲值。
 14. **不得把 `/workspace` 當持久儲存**——停止也會刪除它；要保留的東西放 `/vault`。
@@ -221,7 +230,9 @@ User-Agent: my-automation/1.0                          (required)
 | logs | `tail` ≤ 2000 行、48 KiB |
 | 分段上傳 | 單檔 ≤ 2 TB；`chunkSize` 預設 16 MiB，可要求 4–64 MiB；session 閒置 48 h 清除 |
 | 伺服器端下載 | 每使用者同時 ≤ 3（`429`） |
-| 速率限制（每 5 分鐘） | 執行個體動作 60、映像驗證 120、vault 變更 600、分段 PUT 5000 |
+| 速率限制（每 5 分鐘） | 部署與設定 1200、`exec` 6000、停止／刪除 1200（各自獨立）、映像驗證 600、vault 變更 3000、分段 PUT 20000（見 guides/10） |
+| 自動停止 | `autoStopAt` / `autoStopHours` 在 10 分鐘後到 30 天內；只能設在 `RUNNING` / `DEPLOYING`；時間到 = 停止 |
+| 批次刪除 | `delete-stopped` 一次 ≤ 100 台，只刪 `STOPPED` / `FAILED` |
 | 自訂映像 | 就緒 = TCP 連上 `webUiPort`（無 Web UI 時 22）；容器啟動後 ~15 分鐘內未就緒 → `FAILED`；拉取另有較長時窗且計費 |
 | 容量單位 | `rentableStorageGb`、`diskSizeGb`、Vault `*Gb` 皆為 GiB（2³⁰） |
 

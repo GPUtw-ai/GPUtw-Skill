@@ -1,6 +1,6 @@
 # 10 · 錯誤碼與除錯
 
-> SNAPSHOT 2026-10 ｜ 來源：公開 API 文件、https://gputw.ai/en/docs/faq ｜ 訊息字串可能微調，請以實際回應為準
+> SNAPSHOT 2026-11 ｜ 來源：公開 API 文件、https://gputw.ai/en/docs/faq ｜ 訊息字串可能微調，請以實際回應為準
 
 ## 遇到錯誤怎麼查？
 
@@ -16,7 +16,9 @@ HTTP 回應
 │      └── 其他 → 資源屬於別的帳號 / 帳號停用
 ├── 402 → 點數不足一小時 → 控制台儲值
 ├── 404 → 執行個體 / 檔案 / 範本不存在；或**在傳輸主機上呼叫了非傳輸路由**
-├── 409 → 狀態衝突（機器已被租、上傳 session 已結束、目標已存在）→ 重新查詢後重試
+├── 409
+│      ├── "under maintenance" → 機器維修中，不計費、資料保留 → 等它自動恢復，不要重建
+│      └── 其他狀態衝突（機器已被租、上傳 session 已結束、目標已存在）→ 重新查詢後重試
 ├── 413 / 507 → Vault 配額 / 儲存空間
 ├── 429 → 速率限制 → 讀 RateLimit-* header，退避重試
 ├── 504 → exec 逾時 → 提高 timeoutMs（≤ 120000）或拆小指令
@@ -36,6 +38,7 @@ HTTP 回應
 | `400` | `Custom image must enable SSH or declare a Web UI port` | | 補 `sshEnabled` 或 Web UI |
 | `400` | `"X" requires a newer GPU (compute capability ≥ N)…` | 範本與 GPU 不相容 | 換範本 / 換 GPU |
 | `400` | `Cannot rotate a revoked key` | | 建新金鑰 |
+| `400` | `Auto-stop time must be at least 10 minutes from now` / `Auto-stop time must be within 30 days` / `Send autoStopAt or autoStopHours, not both` | 自動停止時間不合法 | 改成 10 分鐘後到 30 天內、只給一個 |
 | `401` | `Missing or invalid authorization header` | 沒帶 `Authorization: Bearer …` | 補 header |
 | `401` | `Invalid or expired API key` / `Invalid or expired token` | 金鑰錯、撤銷、過期 | 換發 |
 | `401` | `API keys must be sent in the Authorization header, not the query string` | 金鑰放在 `?token=` | 移到 header |
@@ -50,6 +53,9 @@ HTTP 回應
 | `409` | `This machine has no free GPUs right now…` / `Not enough free GPUs on this machine…` | 機器被搶 | 重查 `/nodes/available` |
 | `403` | `Instance limit reached…` | 帳號執行個體數上限（計入非 `TERMINATED` 的） | 刪除不用的執行個體 |
 | `409` | `Upload is <status>` / `Target already exists` | | 重新查詢狀態 |
+| `409` | `This instance is under maintenance: its machine is being repaired…` | 機器維修中（執行個體 `maintenanceSince` 不為 `null`） | 不計費、資料保留，會自動恢復；不要換機重建 |
+| `409` | `Auto-stop can only be set on a running or deploying instance` | 對已停止的執行個體設計時器 | 不用設 |
+| `409` | `This linked group is not free right now` / `Someone is renting this linked group right now…` | 連結群組被占用 | 稍後重查 `/nodes/link-offers` |
 | `410` | `SystemConfig removed … use /api/gpus/active` | 已退役端點 | 改用新端點 |
 | `413` | Vault 配額不足 | | 清理或申請加大配額 |
 | `429` | `Too many requests — please slow down and try again in a minute.` | 每使用者速率限制 | 退避 |

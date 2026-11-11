@@ -1,6 +1,6 @@
 # 03 · 執行個體生命週期：部署、狀態、停止、重啟、刪除
 
-> SNAPSHOT 2026-10 ｜ 來源：https://gputw.ai/en/docs/rest-api-quickstart 、/instances 、/templates 、/instance-status-oom 、/ssh-access 、公開 Instance runtime API 文件 ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
+> SNAPSHOT 2026-11 ｜ 來源：https://gputw.ai/en/docs/rest-api-quickstart 、/instances 、/templates 、/instance-status-oom 、/ssh-access 、公開 Instance runtime API 文件 ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
 
 ## 狀態機
 
@@ -28,6 +28,8 @@ POST /instances/create
 | `TERMINATED` | 不計費 | 不再出現在 `GET /instances` |
 | `INSUFFICIENT_FUNDS` | 已暫停 | 儲值（控制台）後重啟 |
 
+**維護中**：執行個體物件的 `maintenanceSince` 不為 `null` 代表它所在的機器正在維修。這段期間**不計費、資料保留**，修好後自動恢復；停止 / 刪除 / 重啟 / 重新設定 / `exec` 等操作會回 `409 This instance is under maintenance…`，等它恢復即可，不要換機重建。
+
 > ⚠️ **執行個體保持 `RUNNING` 就一直扣點數。** 任何自動化流程結束時都要 `stop` 或 `delete`（見 [11 · 安全關機檢查表](./11-workflows.md)）。
 
 ## `POST /instances/create`（`instances:create`）
@@ -47,6 +49,8 @@ curl -fsS -X POST "$API/instances/create" -A "my-automation/1.0" \
 | `bandwidthMbps` | 選填 | 必須是 `GET /config/deploy` 的 `bandwidthOptions` 之一（目前 `100` 內含、`400` 付費）；省略 = 內含值 |
 | `shmSizeGb` | 選填 | `/dev/shm` 大小，不可超過執行個體 RAM |
 | `ports` | 選填 | 要開的 HTTP 連接埠陣列（`1024–65535`，排除 `2222`, `6443`, `9000–9999`；每台最多 20 個） |
+| `name` | 選填 | 顯示名稱，≤ 40 字（例 `training-1`）。省略 → 伺服器給下一個空的 `GPU 1`、`GPU 2`…（刪掉 `GPU 2` 後這個號碼會被重用）。純標籤，**不能當冪等鍵**，也不影響 SSH 使用者名稱（仍是 `pod-<id>`） |
+| `autoStopHours` ｜ `autoStopAt` | 選填，二選一 | 自動停止計時器：幾小時後（數字，可帶小數）或 ISO 8601 時間（含時區）。必須在 **10 分鐘後到 30 天內**。見下方 §自動停止 |
 
 回應 `201`，`data` 是執行個體的基本欄位：`id`, `nodeId`, `status`（`DEPLOYING`）, `hourlyRate`, `gpuCount`, `cpuCores`, `ramGb`, `diskSizeGb`, `shmSizeGb`, `bandwidthMbps`, `template`（範本或自訂映像的映像參考）, `isByoImage`, `allowedPorts[]`, `portAccess`, `createdAt`。`node{…}`, `exposures[]`, `computeHourlyRate`, `webUiEnabled` / `webUiPort` 與 `deployPhase` 要用 `GET /instances/{id}` 取得。
 
@@ -129,7 +133,7 @@ curl -fsS -X POST "$API/instances/create" -A "my-automation/1.0" \
 - 大小**由所選機器與租用份額決定**，`create` 與 `PUT /instances/{id}` 都不能指定。
 - 限制涵蓋 `/workspace` **加上**容器寫在其他位置的資料（`/tmp`、`/root`、pip / conda 安裝等）；映像本身的唯讀層**不計入**。另有少量緩衝，但請以 `diskSizeGb` 為規劃上限，範本與自訂映像相同。
 - 寫超過時寫入失敗（`ENOSPC` / `EDQUOT`），執行個體繼續執行。但請把它當硬上限：部分機器上超額仍可能讓執行個體停止，寫不進去的程序也可能自己崩潰。要保留的東西放 `/vault`。
-- `df` 看到的是整台機器的檔案系統，不是你的上限。`GET /instances/{id}/resources` 只回報 `allocated.diskSizeGb`，**沒有磁碟用量欄位**。要知道用了多少，在容器內自己量（例如 `du -sb /workspace`），並與 `diskSizeGb × 2³⁰` 比較；`du` 不計入容器其他可寫路徑，請保留餘裕。
+- `df` 看到的是整台機器的檔案系統，不是你的上限。`GET /instances/{id}/resources` 只回報 `allocated.diskSizeGb`，**沒有磁碟用量欄位**；執行個體物件的 `diskUsedGb` / `diskLimitGb` 是定期快照（見 [04](./04-instance-runtime.md) §工作區磁碟用量）。要即時的數字，在容器內自己量（例如 `du -sb /workspace`），並與 `diskSizeGb × 2³⁰` 比較；`du` 不計入容器其他可寫路徑，請保留餘裕。
 
 先用 `POST /instances/validate-image`（`instances:create`）檢查映像可否拉取：`{ "dockerImage": "…", "registryAuth": {…} }` → `{ ok: true, digest, platforms[] }` 或 `{ ok: false, reason: "invalid_reference"|"unauthorized"|"not_found"|"unreachable", message }`。
 
@@ -140,6 +144,7 @@ curl -fsS -X POST "$API/instances/create" -A "my-automation/1.0" \
 | `402` | `Insufficient credits to cover one hour of your total running instances` | 控制台儲值；注意是**所有**執行中執行個體的一小時總和 |
 | `409` | `This machine has no free GPUs right now…` / `Not enough free GPUs on this machine…` | 重新查 `/nodes/available` 換機器 |
 | `403` | `Instance limit reached…` | 帳號執行個體數上限；刪除不用的（`STOPPED` / `FAILED` 也算） |
+| `400` | `Auto-stop time must be at least 10 minutes from now` / `…within 30 days` / `Send autoStopAt or autoStopHours, not both` | 修正計時器 |
 | `503` | `Selected node is not available` | 機器下線 / 維護 → 換機器 |
 | `400` | `Reserved or invalid port(s)…` / `Too many ports — max 20 per instance` | 修正 `ports` |
 | `400` | `"<template>" requires a newer GPU (compute capability ≥ N)` | 換範本或換 GPU |
@@ -158,10 +163,76 @@ curl -fsS -X POST "$API/instances/create" -A "my-automation/1.0" \
 | 停止 | `POST /instances/stop` `{ "instanceId": "…" }` | 任何狀態（`TERMINATED` 除外）；停止計費、保留紀錄與設定可重啟。**容器移除、`/workspace` 刪除**，只有 `/vault` 留下 |
 | 刪除 | `POST /instances/delete` `{ "instanceId": "…" }` | 終止並移除紀錄；`/workspace` 消失、`/vault` 不受影響 |
 | 重啟 | `POST /instances/{id}/restart` `{ "mode": "same" }` 或 `{ "mode": "alternative", "nodeId": "…" }`（可加 `templateId`/`template`, `bandwidthMbps`, `shmSizeGb`） | 須 `STOPPED` / `FAILED`；`alternative` 會建立**新**執行個體（`201`）。先用 `GET /instances/{id}/restart-options` 看原機是否可用與替代方案；此端點也接受 `instances:create` |
-| 重新設定 | `PUT /instances/{id}` `{ "templateId"?, "template"?, "bandwidthMbps"?, "shmSizeGb"? }` | 須 `RUNNING`/`STOPPED`/`FAILED`；重建容器 |
+| 重新設定 | `PUT /instances/{id}` `{ "templateId"?, "template"?, "customImage"?, "bandwidthMbps"?, "shmSizeGb"? }` | 須 `RUNNING`/`STOPPED`/`FAILED`；重建容器。見下方 §原地換成自訂映像 |
+| 改名 | `PATCH /instances/{id}/name` `{ "name": "llama-finetune" }` | 任何狀態；≤ 40 字（超過 → `400 Name must be at most 40 characters`）；`""` 重設為下一個 `GPU N` |
 | 容器重建 | `POST /instances/{id}/pod/restart` | 以相同映像與連接埠重建容器；**`/workspace` 會清空**。自訂映像不適用（憑證已清除，改用 `PUT` 指定範本或重新部署） |
 
 停止/刪除已終止的執行個體 → `400 Instance already terminated`。
+
+### 原地換成自訂映像：`PUT /instances/{id}` + `customImage`
+
+```bash
+curl -X PUT "$API/instances/<id>" -A my-automation/1.0 \
+  -H "Authorization: Bearer $GPUTW_API_KEY" -H "Content-Type: application/json" \
+  -d '{"customImage":{"dockerImage":"docker.io/acme/trainer:v3","sshEnabled":true}}'
+```
+
+- `customImage` 與 `create` 的物件完全相同（[§自帶映像](#自帶映像-customimage)）；不能和 `templateId` / `template` 同時給。
+- 執行中的機器在**同一台**重新部署，**不會**先停止，所以 GPU 一直保留給你（`RUNNING` → `DEPLOYING` → `RUNNING`）。以前要先 stop，而 stop 會把 GPU 釋放給下一個人。
+- 容器會重建：`/workspace`、`/home`、`/root` 不保留（同停止），`/vault` 保留。
+- 需要 `instances:manage` **加** `instances:create`（缺 → `403 API key missing required scope: instances:create …`）。
+- 拉取計費同自訂映像部署：成功不另收；45 分鐘內沒起來會收部署中的時間。映像起不來 → `FAILED` 且 GPU 釋放，所以先 `POST /instances/validate-image`。
+- 反過來用 `templateId` 換回官方範本時，存著的 registry 憑證會一併刪除。
+
+### 批次刪除已停止的機器：`POST /instances/delete-stopped`（`instances:manage`）
+
+清掉佔著執行個體數上限的 `STOPPED` / `FAILED` 紀錄。
+
+```bash
+# 全部（一次最多 100 台，由舊到新）
+curl -X POST "$API/instances/delete-stopped" -A my-automation/1.0 \
+  -H "Authorization: Bearer $GPUTW_API_KEY" -H "Content-Type: application/json" -d '{}'
+# 指定幾台
+  -d '{"instanceIds":["<id-1>","<id-2>"]}'
+```
+
+回傳 `{ "deleted": [...], "skipped": [{ "id", "reason" }] }`；`reason` 為 `NOT_STOPPED` 表示那台不是 `STOPPED` / `FAILED`（或不屬於你），**不會**被刪。`RUNNING` 的機器永遠不會被這個端點刪除。
+
+## 自動停止（`instances:manage`）
+
+給執行個體一個「時間到就停止」的計時器——腳本當掉、對話中斷、忘了關都不會一直燒錢。
+
+| 做法 | 呼叫 |
+|---|---|
+| 建立時設定 | `POST /instances/create` 加 `"autoStopHours": 4` 或 `"autoStopAt": "2026-11-20T18:00:00+08:00"` |
+| 之後設定 / 改時間 | `PATCH /instances/{id}/auto-stop` `{ "autoStopAt": "<ISO>" }` |
+| 延長 | `PATCH /instances/{id}/auto-stop` `{ "extendHours": 1 }` |
+| 取消 | `PATCH /instances/{id}/auto-stop` `{ "autoStopAt": null }` |
+
+- 時間必須在 **10 分鐘後到 30 天內**；`autoStopAt` 與 `autoStopHours` 不能同時給（`400`）。
+- 只能對 `RUNNING` / `DEPLOYING` 設定，其他狀態 → `409 Auto-stop can only be set on a running or deploying instance`。
+- 目前的設定在執行個體物件的 `autoStopAt`（`null` = 沒有計時器）。停止前 30 分鐘與 5 分鐘會通知使用者。
+- 時間到時是**停止**（不是刪除），效果與 `POST /instances/stop` 相同：`/workspace` 清空、只留 `/vault`、紀錄保留。
+- 工作一跑完就要關：在容器內用 `gputw-shutdown`（見 [04](./04-instance-runtime.md) §從容器內關機），計時器當保險。
+
+> 🤖 **給 AI**：替使用者部署、而對方沒說要長時間開著時，建議帶 `autoStopHours` 當安全網，並在回覆中說明時間到會停止、`/workspace` 會清空。
+
+## 連結式 DGX 群組租用：`POST /instances/linked`（`instances:create`）
+
+整組 DGX Spark 一起租（找群組見 [02](./02-catalog-and-capacity.md) §連結式 DGX 群組）。
+
+```json
+POST /instances/linked
+{ "groupId": "<link-offers 的 id>", "templateId": "<arm64 的 DGX Spark 範本>", "bandwidthMbps": 100 }
+```
+
+- `size` 選填：省略 = 整組；3 台的群組若也以 2 台方案販售，可給 `"size": 2`。
+- 範本 / `customImage` / `bandwidthMbps` / `shmSizeGb` / `ports` 與 `create` 相同（每台套用同一份）；不需要 `nodeId`。
+- **全有或全無**：任何一台起不來，整單取消，不會留下半組。
+- 回傳 `201 { rentalId, groupId, instances[] }`；每台都是一般的執行個體，用 `/instances/{id}/status` 各自輪詢、各自 stop / delete。
+- `GET /instances/linked/{rentalId}`（`instances:read`）→ `{ rentalId, size, linkState, members[{ instanceId, status, rank, address }] }`。
+- 每台容器內有 `GPUTW_LINK_NNODES`, `GPUTW_LINK_RANK`, `GPUTW_LINK_ADDR`, `GPUTW_LINK_PEERS`, `MASTER_ADDR`, `MASTER_PORT` 等環境變數，可直接給 `torchrun --nnodes=$GPUTW_LINK_NNODES --node_rank=$GPUTW_LINK_RANK --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT` 使用。
+- 錯誤：`409 This linked group is not free right now` / `Someone is renting this linked group right now…` → 稍後再查 `link-offers`；`404 Linked group not available`。
 
 > ⚠️ **停止、刪除、重啟、重新設定、`pod/restart` 都會清空 `/workspace`**——只有 `/vault` 會留下。停止前把要保留的東西複製到 `/vault`。
 >

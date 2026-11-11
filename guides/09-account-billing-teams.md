@@ -1,6 +1,6 @@
 # 09 · 帳號、點數與帳務、團隊、通知、支援
 
-> SNAPSHOT 2026-09 ｜ 來源：https://gputw.ai/en/docs/billing 、/teams 、/faq 、/support 、/api-keys ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
+> SNAPSHOT 2026-11 ｜ 來源：https://gputw.ai/en/docs/billing 、/teams 、/faq 、/support 、/api-keys ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
 
 ## 點數與計費規則
 
@@ -8,7 +8,8 @@
 - 運算費用在 `RUNNING` 期間計量；`stop` 或 `delete` 即停止。目錄與執行個體的 `hourlyPrice` / `hourlyRate` / `computeHourlyRate` 以 **USD/hr** 表示，點數餘額以 NT$ 顯示。
 - 另計：Vault 儲存（依大小）、超過內含額度的連接埠（見 [05](./05-ports-and-exposures.md)）、付費頻寬方案（`GET /config/deploy`）。
 - 餘額不足以支付下一個計費小時 → 執行個體進入 `INSUFFICIENT_FUNDS`；儲值後重啟。
-- 餘額 ≤ NT$0 時 Vault 資料保留 30 天後刪除（除非儲值）。
+- 餘額 ≤ NT$0 時 Vault 資料保留 **10 天**後永久刪除（除非儲值）；通知會寫明確切的刪除日期。
+- Vault 儲存費有級距：超過 `tier2ThresholdGb` 的部分用較低單價；目前月費看 `GET /vault/stats` 的 `storageNtdPerMonth`（見 [06](./06-vault-basics.md)）。
 - **儲值只能在控制台完成**（`POST /payments/checkout` 對 API 金鑰永遠 `403`）。
 - 低餘額提醒門檻可在控制台設定；`GET /config/features` 的 `lowBalanceThresholdNtd` 是平台預設值。
 

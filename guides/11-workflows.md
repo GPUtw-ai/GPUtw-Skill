@@ -1,6 +1,6 @@
 # 11 · 端到端工作流程
 
-> SNAPSHOT 2026-09 ｜ 組合 [02](./02-catalog-and-capacity.md)–[08](./08-vault-model-download.md) 的端點；細節以各指南與官方文件為準
+> SNAPSHOT 2026-11 ｜ 組合 [02](./02-catalog-and-capacity.md)–[08](./08-vault-model-download.md) 的端點；細節以各指南與官方文件為準
 
 每個流程都遵守同一組原則：**先查目錄再選機器、用 `/status` 輪詢、任何指標 `null` ≠ 0、結束一定 stop/delete、金鑰只給需要的 scope**。
 
@@ -10,12 +10,13 @@
 
 ```
 1. GET  /gpus/active                         → 依 vramGb / idealFor 選 catalog，確認 liveRentablePrice != null
-2. GET  /nodes/available?catalogId=…          → 取第一台 availableGpus > 0 的 nodeId
+2. GET  /nodes/available?catalogId=…          → 取 availableGpus > 0 的 nodeId（要大量讀 /vault → fastVault: true 優先）
 3. GET  /templates                            → 依 name 找範本（例：PyTorch 2.x + JupyterLab），確認 architectures 含機器 arch
-4. POST /instances/create                     → 201，記下 data.id
+4. POST /instances/create  (+ "autoStopHours": N)  → 201，記下 data.id；計時器是腳本失聯時的安全網
 5. 迴圈 GET /instances/{id}/status 每 5 秒     → RUNNING 成功；FAILED → /logs?previous=1；整體逾時 20 分鐘
 6. POST /instances/{id}/exec {"command":["sh","-c","cd /vault/proj && python train.py"], "timeoutMs":120000}
-      （長任務請改用 nohup / tmux 背景執行，再用 exec 查進度或用 SSH）
+      （長任務請改用 nohup / tmux 背景執行，再用 exec 查進度或用 SSH；
+       結尾接 `; gputw-shutdown` 讓機器跑完自己關）
 7. GET  /instances/{id}/resources             → 監看 gpuPct / vramPct；source == "none" 表示沒遙測
 8. POST /instances/stop  {"instanceId": id}   → 停止計費（之後可 restart）；不再需要 → POST /instances/delete
 ```
@@ -67,6 +68,8 @@ ComfyUI 類別目錄：`checkpoints`, `diffusion_models`, `text_encoders`, `vae`
   通知（Slack 等）附 instanceId 與 billing.hourlyRate
 ```
 
+更簡單的替代：部署時帶 `autoStopHours`，或在工作指令結尾接 `gputw-shutdown`（[04](./04-instance-runtime.md) §從容器內關機）——不用另外跑監控程式。
+
 控制台另有「執行個體警示」（例如「GPU 忙碌後閒置 10 分鐘就通知」，可 Email / webhook），目前只能在控制台設定，API 金鑰不可用。
 
 ## E. 自訂映像（BYO image）
@@ -84,6 +87,8 @@ ComfyUI 類別目錄：`checkpoints`, `diffusion_models`, `text_encoders`, `vae`
 - [ ] `GET /instances/active` 沒有意外的 `RUNNING`
 - [ ] 需要保留的輸出已在 `/vault`（`/workspace` 在停止或刪除時都會消失）
 - [ ] `POST /instances/stop`（可能再用）或 `POST /instances/delete`（不再需要）
+- [ ] 要讓機器開著時，確認 `autoStopAt` 是使用者同意的時間（`PATCH /instances/{id}/auto-stop`）
+- [ ] 用不到的 `STOPPED` / `FAILED` 紀錄：`POST /instances/delete-stopped` 一次清掉
 - [ ] 臨時 `instances:exec` 金鑰已 `DELETE /api-keys/{id}`
 - [ ] Vault 的 `recovered/` 資料夾已檢視並清理（7 天後計費）
 

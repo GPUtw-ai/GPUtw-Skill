@@ -1,6 +1,6 @@
 # 04 · 即時狀態：輪詢、用量、事件、日誌、執行指令
 
-> SNAPSHOT 2026-10 ｜ 來源：公開 Instance runtime API 文件、https://gputw.ai/en/docs/instance-runtime 、/monitoring ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
+> SNAPSHOT 2026-11 ｜ 來源：公開 Instance runtime API 文件、https://gputw.ai/en/docs/instance-runtime 、/monitoring ｜ 生成程式碼前請 web_fetch 來源頁面確認最新規格
 
 生命週期 API 描述執行個體**被配置成什麼**；本章的端點描述它**現在在做什麼**。全部需要 `instances:read`（除非另註），且只會觸及同帳號的執行個體（不存在或屬於他人一律 `404`）。
 
@@ -72,7 +72,29 @@ done
 
 - **只有 `RUNNING` 才查詢遙測。** `DEPLOYING`、`STOPPED`、`FAILED` 等狀態一律回 `source: "none"`、所有指標 `null`；此時的 `sampledAt` 是回應時間，不代表樣本年齡。
 - `allocated` 的 `*Gb` 單位是 GiB。
-- **沒有磁碟用量欄位**：只有 `allocated.diskSizeGb`（上限）。容器內的 `df` 看到整台機器的檔案系統，不能當配額檢查；用量請在容器內自行量測（見 [03](./03-instances-lifecycle.md) §工作區磁碟）。
+- `/resources` **沒有磁碟用量欄位**：只有 `allocated.diskSizeGb`（上限）。容器內的 `df` 看到整台機器的檔案系統，不能當配額檢查。
+
+### 工作區磁碟用量（執行個體物件）
+
+`GET /instances/{id}`、`GET /instances` 的每一筆都有：
+
+| 欄位 | 說明 |
+|---|---|
+| `diskUsedGb` | `/workspace`（與容器其他可寫路徑）目前用量，GiB；**`/vault` 不算** |
+| `diskLimitGb` | 這台的上限，GiB |
+| `diskUsageAt` | 這筆量測的時間 |
+
+是**定期量測的快照**（`RUNNING` 後約 1 分鐘內有第一筆，之後約每 10 分鐘更新），不是即時值；還沒量到時三個欄位都是 `null`。要即時精確的數字，在容器內自行量測（見 [03](./03-instances-lifecycle.md) §工作區磁碟）。用 `diskUsedGb / diskLimitGb` 接近 1 當作「快滿了，該清或搬到 `/vault`」的警訊。
+
+## `GET /instances/{id}/metrics?range=1h` — 時間序列
+
+`range` = `1h`（約每 15 秒一點）、`6h`（每分鐘）、`24h`（每 5 分鐘），預設 `1h`。回傳點陣列：
+
+```json
+[ { "time": "14:05", "cpu": 37.5, "ram": 21474836480, "gpu": 98, "vram": 22100, "netIn": 0.4, "netOut": 0.1 }, … ]
+```
+
+`cpu` / `gpu` 是 %、`ram` 是 bytes、`vram` 是 MiB、`netIn` / `netOut` 是 Mbps；多 GPU 時另有 `gpus[{ util, vram }]`（每張卡），`gpu` / `vram` 是平均 / 總和。沒有遙測時是空陣列或 `gpu: null`——**`null` 不是 0**。只要「現在」的數字用 `/resources`；要趨勢（例如「最近一小時 GPU 有沒有在跑」）用這個。
 
 ## `GET /instances/active` — 現在跑著什麼
 
@@ -110,6 +132,30 @@ curl -fsS -A my-automation/1.0 -H "Authorization: Bearer $KEY" "$API/instances/$
 - 1–64 個參數，每個 ≤ 4096 字元。
 
 > ⚠️ **這是執行個體上的 root shell。** 需要獨立的 `instances:exec` scope，除 `full` 外沒有 preset 包含它；每次呼叫寫入稽核紀錄（指令與結束碼，不含輸出）。不要把它給共用或第三方自動化。
+
+## 從容器內關機：`gputw-shutdown` / `POST /instances/self-stop`
+
+工作跑完就讓機器自己關，不用從外面輪詢、也不需要 API 金鑰。
+
+```bash
+python train.py && gputw-shutdown            # 成功才關（停止：紀錄與 /vault 保留）
+python train.py ;  gputw-shutdown            # 不論成敗都關
+python train.py ;  gputw-shutdown --terminate  # 直接刪除執行個體
+```
+
+- `gputw-shutdown` 內建於 GPUtw 的基底映像（範本）。自訂映像若不是 `FROM` GPUtw 基底映像，就直接呼叫 API——容器內一樣有注入的環境變數：
+
+```bash
+curl -X POST "$GPUTW_API_URL/api/instances/self-stop" \
+  -H "Authorization: Bearer $GPUTW_CONTROL_TOKEN" \
+  -H "Content-Type: application/json" -d '{"action":"stop"}'   # 或 "terminate"
+```
+
+- `GPUTW_CONTROL_TOKEN` 只代表「這一台」，只能關自己，碰不到帳號的其他東西，所以放在容器裡是安全的。
+- 回 `202 Accepted`，關機在回應送出**之後**才發生；對已停止的執行個體送 `stop` 會成功但沒有變化。
+- 用注入的 `$GPUTW_API_URL`，不要改成其他位址。
+- 關機一樣會清空 `/workspace`：先把成果複製到 `/vault`。
+- 搭配 `autoStopHours`（[03](./03-instances-lifecycle.md) §自動停止）：工作正常結束時自己關，卡住時由計時器兜底。
 
 ## `POST /instances/{id}/pod/restart` — 原地重建容器（`instances:manage`）
 

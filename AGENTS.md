@@ -1,6 +1,6 @@
 # GPUtw API 整合助手 — OpenAI Codex CLI
 
-> **V1.1.1** ｜ 適用 OpenAI Codex CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
+> **V1.2.0** ｜ 適用 OpenAI Codex CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
 
 ## 啟動指示
 
@@ -22,23 +22,29 @@
 
 **部署**
 - 選型號：`GET /gpus/active`（公開）→ `id` 當 `catalogId`；`liveRentablePrice == null` / `demandStatus == 售罄` 表示沒空機
-- 選機器：`GET /nodes/available?catalogId=…`（`catalog:read`）→ `availableGpus > 0` 的 `id` 當 `nodeId`
+- 選機器：`GET /nodes/available?catalogId=…`（`catalog:read`）→ `availableGpus > 0` 的 `id` 當 `nodeId`；要大量讀 `/vault` 時 `fastVault: true` 優先
+- 連結式 DGX 群組（`linkGroupSize` 不為 `null` 的型號）：`GET /nodes/link-offers` → `POST /instances/linked` 整組租用（見 `guides/02`、`guides/03`）
 - 選範本：`GET /templates`（公開）→ `architectures[]` 必須含機器 `arch`（DGX Spark = `arm64`）
 - 自訂映像：`customImage.dockerImage` 用明確 tag / digest、`sshEnabled` 或 Web UI 二選一，先 `POST /instances/validate-image`；就緒 = 對 `webUiPort`（或 22）的 TCP 連線成功
 - `create` 沒有冪等鍵：回應遺失時不要盲目重送，先 `GET /instances` 對帳（見 `guides/03` §建立復原）
 - 部署：`POST /instances/create` → `201`；輪詢 `GET /instances/{id}/status` 每 5 秒到 `RUNNING`；`FAILED` → `/logs?previous=1`
-- 結束：`POST /instances/stop`（可重啟）或 `POST /instances/delete`
+- 安全網：`create` 帶 `autoStopHours`（10 分鐘–30 天），之後 `PATCH /instances/{id}/auto-stop` 改 / 延長 / 取消；工作結尾在容器內 `gputw-shutdown`
+- 結束：`POST /instances/stop`（可重啟）或 `POST /instances/delete`；清掉一堆 `STOPPED` / `FAILED` → `POST /instances/delete-stopped`
+- 名稱：`create` 可帶 `name`（≤ 40 字，預設 `GPU N`），之後 `PATCH /instances/{id}/name`；純標籤，不能當冪等鍵
+- 換自訂映像不放掉 GPU：`PUT /instances/{id}` 帶 `customImage`（另需 `instances:create`），同一台原地重新部署
+- `409 …under maintenance` / `maintenanceSince` 不為 `null`：機器維修中，不計費、資料保留，等它恢復
 
 **監控與除錯**
-- 用量：`GET /instances/{id}/resources`，`usage.source == none` 表示沒遙測（`null` ≠ 0）
+- 用量：`GET /instances/{id}/resources`，`usage.source == none` 表示沒遙測（`null` ≠ 0）；工作區磁碟看執行個體物件的 `diskUsedGb` / `diskLimitGb`（定期快照）
 - 卡住：`/status` 的 `deployPhase` + `failureReason` → `/events` → `/logs?previous=1` → `/startup-log`
 - 執行指令：`POST /instances/{id}/exec`，`command` 為 argv 陣列，需 `instances:exec`
-- 全帳號：`GET /instances/active`；費用：`GET /instances/{id}/runs`
+- 全帳號：`GET /instances/active`；費用：`GET /instances/{id}/runs`；趨勢：`GET /instances/{id}/metrics?range=1h|6h|24h`
 
 **Vault**
 - 小檔：`POST /vault/upload?path=`（multipart）；大檔：分段上傳到 `https://upload.gputw.ai/api`（`chunkSize` 取自 session）
-- 網址 / Hugging Face：`POST /vault/downloads`（`hf:<owner>/<repo>:<path>`；gated 用 `hfToken`）——只在 `api.gputw.ai`
-- CI：`Upload token` preset（只有 `vault:write`）
+- 網址 / Hugging Face：`POST /vault/downloads`（`hf:<owner>/<repo>:<path>`；gated 用 `hfToken`）——只在 `api.gputw.ai`；`failed` 且 `error` 含 `retrying automatically` / `resuming` = 自動重試中，繼續輪詢
+- CI：`Upload token` preset（只有 `vault:write`）；弄丟 `uploadId` → 用同樣的 `path`/`size`/`chunkSize`/`sha256` 再 `POST /vault/uploads` 會拿回原 session（`resumed: true`）
+- 費用：`GET /vault/stats` 的 `storageNtdPerMonth`（已套級距）；餘額 ≤ 0 時 Vault 保留 10 天後永久刪除
 - 取回：`GET /vault/download?filename=`（支援 Range）、`GET /vault/download-zip?folder=`
 
 **帳號**
@@ -62,7 +68,7 @@
 8. 不寫死 `chunkSize`、範本 UUID、catalog UUID
 9. `upload.gputw.ai` 只打傳輸路由；`/vault/list`、`/stats`、`/downloads` 留在 `api.gputw.ai`
 10. 不用 raw TCP/UDP 曝露無驗證的 Web UI
-11. 流程結尾必定 `stop` / `delete`（`finally`），並提醒 `RUNNING` 持續扣點數
+11. 流程結尾必定 `stop` / `delete`（`finally`），並提醒 `RUNNING` 持續扣點數；建議 `create` 時帶 `autoStopHours` 當安全網
 12. 自訂映像不用 `:latest`；先 `validate-image`
 13. `403` 不重試；`429` 依 `RateLimit-Reset` 退避；`402` 提示儲值
 14. `/workspace` 不持久（停止也會刪除）；要保留的放 `/vault`
@@ -76,9 +82,9 @@
 - 信封：`{ "success": true, "data": …, "error": null }` / `{ "success": false, "data": null, "error": "…" }`
 - Presets：`readonly`（catalog:read, instances:read, profile:read, vault:read, billing:read, notifications:read）｜ `deploy`（catalog:read, instances:read, instances:create）｜ `operator`（instances:read, instances:manage, ports:manage）｜ `Upload token`（vault:write）｜ `full`（全部，含 instances:exec）
 - 狀態：`DEPLOYING` → `RUNNING` → `STOPPED` / `FAILED` / `TERMINATED`；`INSUFFICIENT_FUNDS`；`deployPhase`（僅 `DEPLOYING` 時有值）: `SCHEDULING` / `PREPARING` / `PULLING_IMAGE` / `STARTING` / `RUNNING`，異常 `CONFIG_ERROR` / `START_FAILED` / `CRASH_LOOP`
-- 限制：部署需餘額 ≥ 一小時；機器依 GPU 數共用（沒空 GPU → `409`）；連接埠 `1024–65535` 排除 `2222`, `6443`, `9000–9999`；exec `timeoutMs` ≤ 120000；logs `tail` ≤ 2000；上傳單檔 ≤ 2 TB；同時下載 ≤ 3
+- 限制：部署需餘額 ≥ 一小時；自動停止 10 分鐘–30 天；機器依 GPU 數共用（沒空 GPU → `409`）；連接埠 `1024–65535` 排除 `2222`, `6443`, `9000–9999`；exec `timeoutMs` ≤ 120000；logs `tail` ≤ 2000；上傳單檔 ≤ 2 TB；同時下載 ≤ 3
 - 驗證載入：「GPUtw API key 的前綴是什麼？」→ `gputw_live_`
 
 ## 即時 API 規格
 
-`guides/` 的表格是 SNAPSHOT 2026-09。回答欄位、限制、費用或最新行為前，先瀏覽 `references/docs-site.md` 對應的 https://gputw.ai/en/docs/… 或 /zh-TW/docs/… 頁面；無法瀏覽時以 guides 回答並告知開發者附上 URL。官方頁面也沒有的端點 → 明說「未收錄」，不要猜。
+`guides/` 的表格是 SNAPSHOT 2026-11。回答欄位、限制、費用或最新行為前，先瀏覽 `references/docs-site.md` 對應的 https://gputw.ai/en/docs/… 或 /zh-TW/docs/… 頁面；無法瀏覽時以 guides 回答並告知開發者附上 URL。官方頁面也沒有的端點 → 明說「未收錄」，不要猜。

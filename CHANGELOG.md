@@ -49,3 +49,22 @@
 - `@gputw/mcp-server` 1.1.0 發佈到 npm；只裝 MCP 可用 `git clone` + `node mcp/dist/stdio.mjs`，或 `npx -y @gputw/mcp-server@latest`
 - 版本固定範例改為 `v1.1.1`
 - Skill 與 MCP 伺服器版本可以不同：本版 Skill 為 1.1.1，MCP 伺服器仍是 1.1.0（程式未變）
+
+## V1.2.0 — 2026-11-12
+
+補上 V1.1.1 之後上線的公開 API 功能。MCP 伺服器程式未變（仍為 1.1.0）。
+
+- **高速 Vault 機器**：`GET /nodes/available` 每台多了 `fastVault`（`true` = 讀寫 `/vault` 較快，控制台標示「+ 高速永久儲存庫」）；`guides/02` 新增選機器的建議順序
+- **自動停止計時器**：`POST /instances/create` 可帶 `autoStopHours` ｜ `autoStopAt`；新增 `PATCH /instances/{id}/auto-stop`（設定 / 延長 / 取消，`instances:manage`）；10 分鐘–30 天；時間到 = 停止
+- **容器內關機**：`gputw-shutdown` 與 `POST /instances/self-stop`（`GPUTW_CONTROL_TOKEN`，不需 API 金鑰，`stop` ｜ `terminate`，`202`）
+- **批次刪除**：`POST /instances/delete-stopped`（`STOPPED` / `FAILED`，一次 ≤ 100 台，回 `deleted[]` / `skipped[]`）
+- **維護中**：執行個體物件新增 `maintenanceSince`；維修期間不計費、資料保留，生命週期操作回 `409 This instance is under maintenance…`
+- **工作區磁碟用量**：執行個體物件新增 `diskUsedGb`, `diskLimitGb`, `diskUsageAt`（定期快照，可能為 `null`）
+- **連結式 DGX 群組**：目錄新增 `linkGroupSize`；`GET /nodes/link-offers`、`POST /instances/linked`、`GET /instances/linked/{rentalId}`；群組內的環境變數 `GPUTW_LINK_*` / `MASTER_ADDR` / `MASTER_PORT`
+- **Vault**：`/vault/stats` 新增級距價 `tier2ThresholdGb`, `tier2PriceNtdPerGbMonth`, `tier2PriceNtdPerGbHour` 與目前費用 `storageNtdPerMonth`, `storageNtdPerHour`；根目錄 `/vault/list` 新增 `stagingBytes`；餘額 ≤ NT$0 的保留期由 30 天改為 **10 天**，之後永久刪除
+- **分段上傳**：對同一路徑以相同 `size` + `chunkSize` + `sha256` 重送 `POST /vault/uploads` 會取回原 session（`resumed: true`, `receivedParts[]`），同路徑其他未完成 session 會被中止
+- **執行個體名稱**：`create` 可帶 `name`（≤ 40 字；省略 = 下一個空的 `GPU N`），新增 `PATCH /instances/{id}/name`（`instances:manage`，`""` 重設）；每個執行個體物件都有 `name`
+- **原地換成自訂映像**：`PUT /instances/{id}` 接受 `customImage`，在同一台機器重新部署、不經過 `STOPPED`、GPU 保留；另需 `instances:create`
+- **時間序列指標**：收錄 `GET /instances/{id}/metrics?range=1h|6h|24h`
+- **伺服器端下載自動續傳**：中途斷線自動重試 5 次、服務重啟後自動接續；重試期間同一個 `id` 會短暫顯示 `failed`（`error` 含 `retrying automatically` / `resuming`），`guides/08` 的輪詢範例已處理
+- `SKILL.md` 快速參考的速率限制更新為與 `guides/10` 一致的現行額度

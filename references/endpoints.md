@@ -1,7 +1,7 @@
 # GPUtw REST API 端點總表（公開契約）
 
 > ⚠️ **AI 指令**：本表是 GPUtw 使用者 API 的**唯一可引用端點清單**。不在此表中的路徑，不得憑記憶或猜測告訴開發者「應該存在」——請改為引導開發者查看 https://gputw.ai/zh-TW/docs 或聯絡支援。
-> 快照日期：2026-09 ｜ 來源：GPUtw 官方文件（`gputw.ai/docs`）與公開 API 文件 ｜ 規格細節以 [`references/docs-site.md`](./docs-site.md) 內的即時頁面為準。
+> 快照日期：2026-11 ｜ 來源：GPUtw 官方文件（`gputw.ai/docs`）與公開 API 文件 ｜ 規格細節以 [`references/docs-site.md`](./docs-site.md) 內的即時頁面為準。
 
 ## 基本資訊
 
@@ -19,6 +19,7 @@
 - **Scope**：API 金鑰需具備的權限範圍；`—` = 公開端點，不需認證；**🔒 僅限瀏覽器登入** = 任何 scope 都無法透過 API 金鑰呼叫
 - **來源**：`docs` = 公開 API 文件（instance-api / vault-upload-api / vault-download-api / transfer host）；`site` = gputw.ai/docs 頁面；`live` = 本 skill 撰寫時對公開端點實際呼叫驗證；`dashboard` = 控制台功能對應的 API（官方文件僅以功能描述提及，欄位以控制台行為為準）
 - 🚚 = 亦可在傳輸主機 `upload.gputw.ai` 上呼叫
+- 🔑 執行個體權杖 = 只在執行個體容器內可用的 `GPUTW_CONTROL_TOKEN`，不是 API 金鑰
 
 ## 目錄與設定（公開，不需認證）
 
@@ -34,7 +35,8 @@
 
 | 方法 | 路徑 | Scope | 指南 | 說明 | 來源 |
 |---|---|---|---|---|---|
-| GET | `/nodes/available?catalogId=<uuid>` | `catalog:read` | [02](../guides/02-catalog-and-capacity.md) | 該 GPU 型號目前可租的機器：不透明的機器 `id`、可租硬體規格、整機 `hourlyRate`、可用數量、排隊深度 | site |
+| GET | `/nodes/available?catalogId=<uuid>` | `catalog:read` | [02](../guides/02-catalog-and-capacity.md) | 該 GPU 型號目前可租的機器：不透明的機器 `id`、可租硬體規格、整機 `hourlyRate`、可用數量、排隊深度、`fastVault`（`true` = 這台讀寫 `/vault` 較快，控制台標示「+ 高速永久儲存庫」） | site, live |
+| GET | `/nodes/link-offers?catalogId=<uuid>` | `catalog:read` | [02](../guides/02-catalog-and-capacity.md) | 連結式 DGX 群組（目錄名稱以 `Link` 結尾的型號）的可租方案：`id`, `size`, `catalogId`, `catalogName`, `available`, `hourlyRate`, `members[]`；`catalogId` 選填 | live |
 | GET / POST / DELETE | `/reservations` , `/reservations/{id}` | `reservations:manage` | [02](../guides/02-catalog-and-capacity.md) | 容量排隊（機器售罄時預約）。請求格式請以控制台/官方文件為準 | site (scope 說明) |
 
 ## 執行個體 — 生命週期
@@ -42,14 +44,19 @@
 | 方法 | 路徑 | Scope | 指南 | 說明 | 來源 |
 |---|---|---|---|---|---|
 | GET | `/instances` | `instances:read` | [03](../guides/03-instances-lifecycle.md) | 列出帳號下**全部**執行個體（`DEPLOYING`/`RUNNING`/`STOPPED`/`FAILED`/`INSUFFICIENT_FUNDS`，不含 `TERMINATED`），新→舊，**不分頁、無篩選參數**。不回傳 `customImage.env` / `args`。**勿在迴圈中輪詢此端點**，改用 `/{id}/status` | site, docs |
-| GET | `/instances/{id}` | `instances:read` | [04](../guides/04-instance-runtime.md) | 單一執行個體，欄位與列表相同 | docs |
-| POST | `/instances/create` | `instances:create` | [03](../guides/03-instances-lifecycle.md) | 部署。`nodeId` + (`templateId` ｜ `template` ｜ `customImage`) 三選一，選填 `bandwidthMbps`, `shmSizeGb`, `ports[]` → `201`。**無冪等鍵**，不認得的欄位會被忽略（沒有 label / metadata） | site, docs |
+| GET | `/instances/{id}` | `instances:read` | [04](../guides/04-instance-runtime.md) | 單一執行個體，欄位與列表相同（含 `autoStopAt`, `maintenanceSince`, `diskUsedGb`, `diskLimitGb`, `diskUsageAt`） | docs, live |
+| POST | `/instances/create` | `instances:create` | [03](../guides/03-instances-lifecycle.md) | 部署。`nodeId` + (`templateId` ｜ `template` ｜ `customImage`) 三選一，選填 `bandwidthMbps`, `shmSizeGb`, `ports[]` → `201`。**無冪等鍵**，不認得的欄位會被忽略（沒有 label / metadata）。選填 `autoStopHours` ｜ `autoStopAt`（自動停止計時器，二選一）、`name`（≤ 40 字；省略 = 下一個空的 `GPU N`） | site, docs |
 | POST | `/instances/validate-image` | `instances:create` | [03](../guides/03-instances-lifecycle.md) | 部署前檢查自訂映像可否拉取（`dockerImage`, 選填 `registryAuth`） | docs (scope 說明) |
 | POST | `/instances/stop` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | `{ "instanceId": "<uuid>" }`；停止即停止計費，保留紀錄可重啟；**`/workspace` 刪除**，只有 `/vault` 留下 | site, docs |
 | POST | `/instances/delete` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | `{ "instanceId": "<uuid>" }`；終止並移除執行個體 | docs |
+| POST | `/instances/delete-stopped` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | 批次刪除 `STOPPED` / `FAILED`：body `{}`（全部，一次最多 100 台）或 `{ "instanceIds": ["…"] }` → `{ deleted[], skipped[{ id, reason }] }` | live |
+| PATCH | `/instances/{id}/name` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | 改名 `{ "name": "llama-finetune" }`（≤ 40 字）；`{ "name": "" }` 重設為下一個空的 `GPU N`；每個執行個體物件都有 `name` | site |
+| PATCH | `/instances/{id}/auto-stop` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | 自動停止計時器：`{ "autoStopAt": "<ISO>" }` 設定、`{ "extendHours": 1 }` 延長、`{ "autoStopAt": null }` 取消；須 `RUNNING` / `DEPLOYING`；時間在 10 分鐘後到 30 天內 → 回傳執行個體 | site |
+| POST | `/instances/linked` | `instances:create` | [03](../guides/03-instances-lifecycle.md) | 連結式 DGX 群組整組租用：`{ groupId, size?, templateId｜template｜customImage, bandwidthMbps?, … }` → `201 { rentalId, groupId, instances[] }`；全有或全無 | live |
+| GET | `/instances/linked/{rentalId}` | `instances:read` | [03](../guides/03-instances-lifecycle.md) | 連結租用狀態：`{ rentalId, size, linkState, members[{ instanceId, status, rank, address }] }` | live |
 | GET | `/instances/{id}/restart-options` | `instances:read` | [03](../guides/03-instances-lifecycle.md) | 已停止/失敗的執行個體：原機是否可重啟、有哪些替代機器 | dashboard |
 | POST | `/instances/{id}/restart` | `instances:manage`（或 `instances:create`） | [03](../guides/03-instances-lifecycle.md) | `{ "mode": "same" }` 同機重啟（`200`）或 `{ "mode": "alternative", "nodeId": "…" }` 換機（建立新執行個體 → `201`） | dashboard |
-| PUT | `/instances/{id}` | `instances:manage` | [03](../guides/03-instances-lifecycle.md) | 重新設定（換範本 / 頻寬 / shm）；會重建容器 | docs |
+| PUT | `/instances/{id}` | `instances:manage`（帶 `customImage` 時另需 `instances:create`） | [03](../guides/03-instances-lifecycle.md) | 重新設定（換範本 / 頻寬 / shm）；會重建容器。帶 `customImage`（與 `create` 相同物件）→ 在**同一台機器**原地換成自訂映像，不經過 `STOPPED`、GPU 保留（`RUNNING` → `DEPLOYING` → `RUNNING`） | docs, site |
 | POST | `/instances/{id}/pod/restart` | `instances:manage` | [04](../guides/04-instance-runtime.md) | 重建容器（相同映像與連接埠）；**`/workspace` 清空**；自訂映像不適用 | docs |
 
 ## 執行個體 — 即時狀態（runtime）
@@ -58,11 +65,13 @@
 |---|---|---|---|---|---|
 | GET | `/instances/active` | `instances:read` | [04](../guides/04-instance-runtime.md) | 所有 `DEPLOYING`/`RUNNING` 執行個體 + 即時 `pod` 狀態 + `usage` | docs |
 | GET | `/instances/{id}/status` | `instances:read` | [04](../guides/04-instance-runtime.md) | **輪詢用**的輕量端點：`status`, `deployPhase`（僅 `DEPLOYING`）, `podPhase`, `ready`, `restartCount`, `waitingReason`, `terminatedReason`, `failureReason`, `createdAt`, `startedAt`, `uptimeSec` | docs |
-| GET | `/instances/{id}/resources` | `instances:read` | [04](../guides/04-instance-runtime.md) | `allocated` + `usage`（含 `source`: `prometheus`/`fallback`/`none`）+ `billing`；非 `RUNNING` 時 `usage` 全 `null`、`source: none`；**沒有磁碟用量欄位** | docs |
+| GET | `/instances/{id}/resources` | `instances:read` | [04](../guides/04-instance-runtime.md) | `allocated` + `usage`（含 `source`: `prometheus`/`fallback`/`none`）+ `billing`；非 `RUNNING` 時 `usage` 全 `null`、`source: none`；**沒有磁碟用量欄位**（工作區用量改看執行個體物件的 `diskUsedGb` / `diskLimitGb`） | docs |
+| GET | `/instances/{id}/metrics?range=1h` | `instances:read` | [04](../guides/04-instance-runtime.md) | 時間序列（`range` = `1h` / `6h` / `24h`，預設 `1h`）：點陣列 `[{ time, cpu, ram, gpu, vram, netIn, netOut, gpus? }]`；無資料 → 空陣列 | site |
 | GET | `/instances/{id}/events?limit=20` | `instances:read` | [04](../guides/04-instance-runtime.md) | 結構化事件 `{ events[{type, reason, message, count, lastSeen}], podExists }`；`limit` 1–100 | docs |
 | GET | `/instances/{id}/logs?tail=200&previous=1` | `instances:read` | [04](../guides/04-instance-runtime.md) | 容器日誌尾端；`tail` ≤ 2000 行、回應 ≤ 48 KiB；`previous=1` 讀上一個容器（crash loop 必用） | docs |
 | GET | `/instances/{id}/runs?limit=50` | `instances:read` | [04](../guides/04-instance-runtime.md) | 此執行個體的計費區段（新→舊）；`limit` 1–200 | docs |
 | GET | `/instances/{id}/startup-log` | `instances:read` | [04](../guides/04-instance-runtime.md) | 部署失敗時的文字啟動日誌（控制台「Startup log」同源） | docs (提及) |
+| POST | `/instances/self-stop` | 🔑 執行個體權杖 | [04](../guides/04-instance-runtime.md) | **容器內**呼叫：`Authorization: Bearer $GPUTW_CONTROL_TOKEN`，`{ "action": "stop"｜"terminate" }` → `202`；只能關自己這台，不用 API 金鑰。基底映像內建 `gputw-shutdown` | site |
 | POST | `/instances/{id}/exec` | `instances:exec` | [04](../guides/04-instance-runtime.md) | `{ "command": [argv…], "timeoutMs": 30000 }` → `{ stdout, stderr, exitCode, truncated }`；root 權限、留稽核紀錄 | docs |
 
 ## 連接埠與網路
@@ -78,21 +87,21 @@
 
 | 方法 | 路徑 | Scope | 指南 | 說明 | 來源 |
 |---|---|---|---|---|---|
-| GET | `/vault/stats` | `vault:read` | [06](../guides/06-vault-basics.md) | 計費用量與配額（GiB）、單價；欄位見 06 | docs (提及) |
-| GET | `/vault/list?path=models` | `vault:read` | [06](../guides/06-vault-basics.md) | 列出資料夾：`files[{ name, size, modifiedAt, type }]` | site, docs |
+| GET | `/vault/stats` | `vault:read` | [06](../guides/06-vault-basics.md) | 計費用量與配額（GiB）、單價、級距價（`tier2*`）、目前每月 / 每小時儲存費；欄位見 06 | docs (提及), live |
+| GET | `/vault/list?path=models` | `vault:read` | [06](../guides/06-vault-basics.md) | 列出資料夾：`files[{ name, size, modifiedAt, type }]`, `totalBytes`；根目錄另有 `stagingBytes`（未完成的上傳 / 下載暫存，也計入用量） | site, docs, live |
 | POST | `/vault/mkdir` | `vault:write` | [06](../guides/06-vault-basics.md) | 建立資料夾 `{ "path": "…" }` | site (scope 說明) |
 | POST | `/vault/rename` | `vault:write` | [06](../guides/06-vault-basics.md) | 搬移/改名 `{ "from": "…", "to": "…" }` | site (scope 說明) |
 | DELETE | `/vault/delete` | `vault:write` | [06](../guides/06-vault-basics.md) | 刪除檔案/資料夾 `{ "filename": "…" }` | site (scope 說明) |
 | POST 🚚 | `/vault/upload?path=<folder>` | `vault:write` | [06](../guides/06-vault-basics.md) | 單請求 multipart 上傳（欄位 `file`）。經主站 ≤ ~90 MB；經傳輸主機無上限 | site, docs |
 | GET 🚚 | `/vault/download?filename=<path>` | `vault:read` | [06](../guides/06-vault-basics.md) | 下載單檔，支援 `Range` | site, docs |
 | GET 🚚 | `/vault/download-zip?folder=<path>` | `vault:read` | [06](../guides/06-vault-basics.md) | 資料夾打包為 zip 串流 | site, docs |
-| POST 🚚 | `/vault/uploads` | `vault:write` | [07](../guides/07-vault-chunked-upload.md) | 建立分段上傳 `{ path, size, sha256?, chunkSize? }` → `{ uploadId, chunkSize, partCount, … }` | docs |
+| POST 🚚 | `/vault/uploads` | `vault:write` | [07](../guides/07-vault-chunked-upload.md) | 建立分段上傳 `{ path, size, sha256?, chunkSize? }` → `{ uploadId, chunkSize, partCount, … }`。同一路徑已有相同 `size` + `chunkSize` + `sha256` 的未完成 session → 回傳**那個** session（`resumed: true`, `receivedParts[]`）；同路徑其他未完成 session 會被中止 | docs, live |
 | PUT 🚚 | `/vault/uploads/{uploadId}/parts/{n}` | `vault:write` | [07](../guides/07-vault-chunked-upload.md) | 上傳第 n 段原始位元組（`application/octet-stream`），可平行、可重送 | docs |
 | POST 🚚 | `/vault/uploads/{uploadId}/complete` | `vault:write` | [07](../guides/07-vault-chunked-upload.md) | 開始組裝 → `202` | docs |
 | GET 🚚 | `/vault/uploads/{uploadId}` | `vault:read` **或** `vault:write` | [07](../guides/07-vault-chunked-upload.md) | 狀態與 `receivedParts[]`（續傳用） | docs |
 | DELETE 🚚 | `/vault/uploads/{uploadId}` | `vault:write` | [07](../guides/07-vault-chunked-upload.md) | 中止分段上傳 | docs |
 | POST | `/vault/downloads` | `vault:write` | [08](../guides/08-vault-model-download.md) | 伺服器端下載 `{ source, targetPath, hfToken? }` → `202`。**不在傳輸主機上** | docs |
-| GET | `/vault/downloads` , `/vault/downloads/{id}` | `vault:read` | [08](../guides/08-vault-model-download.md) | 列表 / 進度（`status`, `bytesDownloaded`, `totalBytes`） | docs |
+| GET | `/vault/downloads` , `/vault/downloads/{id}` | `vault:read` | [08](../guides/08-vault-model-download.md) | 列表 / 進度（`status`, `bytesDownloaded`, `totalBytes`, `error`）。**自動重試中會短暫是 `failed`**（`error` 含 `retrying automatically` 或 `resuming`），之後同一個 `id` 回到 `pending` / `downloading` | docs, live |
 | DELETE | `/vault/downloads/{id}` | `vault:write` | [08](../guides/08-vault-model-download.md) | 取消下載 | docs |
 
 ## 帳號、帳務、團隊、通知

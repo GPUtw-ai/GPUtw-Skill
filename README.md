@@ -1,8 +1,37 @@
+# GPUtw Skill: rent GPUs in Taiwan from your AI coding agent
+
+**English** ｜ [繁體中文](#gputw-skill-1)
+
+An Agent Skill + MCP server for [GPUtw](https://gputw.ai/?utm_source=github&utm_medium=readme&utm_campaign=launch), a GPU cloud based in Taiwan.
+Tell Claude Code, Codex CLI, Cursor, Copilot or Gemini CLI what you want in plain language, and it will deploy a GPU instance, wait until it is `RUNNING`, run your command, move models into persistent storage (`/vault`), and shut it down at the end.
+
+**Example prompt**
+
+> Open an RTX 4090 on GPUtw with the PyTorch template, print the SSH command once it is RUNNING, and always stop it at the end.
+
+**Install (Claude Code)**
+
+```
+/plugin marketplace add GPUtw-ai/GPUtw-Skill
+/plugin install gputw@gputw
+```
+
+**MCP server only (18 tools)**
+
+```bash
+claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mcp-server@latest
+```
+
+Other tools (Codex, Gemini CLI, Cursor, Copilot): see [`SETUP.md`](./SETUP.md). Docs: <https://gputw.ai/en/docs>. MIT licensed.
+The knowledge base is written in Traditional Chinese, but the assistant always answers in **your** language, and API fields, endpoints and code identifiers stay untranslated.
+
+---
+
 # GPUtw Skill
 
-> **V1.1.1** ｜ GPUtw.ai（ https://gputw.ai ）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。**現在含官方 MCP 伺服器（18 個工具）**。
+[English](#gputw-skill-rent-gpus-in-taiwan-from-your-ai-coding-agent) ｜ **繁體中文**
 
-**English:** An [Agent Skill](https://agentskills.io) for the GPUtw GPU cloud (Taiwan). Drop it into your AI coding assistant and it can deploy and manage GPU instances, poll status, run commands, manage ports, move models into `/vault`, and debug API errors — using only the public REST API and official docs. Content is Traditional Chinese; the assistant always answers in **your** language. See [Install](#安裝) below.
+> **V1.2.0** ｜ GPUtw.ai（ https://gputw.ai ）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。**現在含官方 MCP 伺服器（18 個工具）**。
 
 ---
 
@@ -75,7 +104,7 @@ git clone https://github.com/GPUtw-ai/GPUtw-Skill.git .claude/skills/gputw
 ### 版本固定
 
 ```bash
-cd ~/.claude/skills/gputw && git tag -l && git checkout v1.1.1
+cd ~/.claude/skills/gputw && git tag -l && git checkout v1.2.0
 ```
 
 ## MCP 伺服器
