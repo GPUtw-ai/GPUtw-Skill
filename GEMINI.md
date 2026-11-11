@@ -1,6 +1,6 @@
 # GPUtw API 整合助手 — Google Gemini CLI
 
-> **V1.2.0** ｜ 適用 Google Gemini CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
+> **V1.3.0** ｜ 適用 Google Gemini CLI ｜ 完整知識庫入口：[`SKILL.md`](./SKILL.md) ｜ 如有差異以 `SKILL.md` 為準
 
 ## 啟動指示
 

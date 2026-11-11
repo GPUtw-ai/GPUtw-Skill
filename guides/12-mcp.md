@@ -16,7 +16,7 @@ GPUtw MCP 伺服器把控制平面包成**結構化工具呼叫**：不用組 cu
 兩種方式。**外掛**同時裝 Skill 與 MCP，金鑰存在安全儲存區；**手動**只裝 MCP。
 
 ```bash
-# 外掛（建議）— 一次拿到 Skill + 18 個工具
+# 外掛（建議）— 一次拿到 Skill + 22 個工具
 /plugin marketplace add GPUtw-ai/GPUtw-Skill
 /plugin install gputw@gputw
 # 安裝時會問 GPUtw API key（標記為 sensitive，不寫進純文字設定）
@@ -73,12 +73,12 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 
 > ℹ️ `claude plugin details gputw@gputw` 的 **MCP servers 會顯示 0**，這是顯示上的落差，不是故障：該計數只認外掛根目錄的 `.mcp.json`，而本外掛刻意把伺服器宣告寫在 `plugin.json` 裡（放在 repo 根目錄的 `.mcp.json` 會同時被當成**專案層級**設定，讓在 clone 裡工作的人看到 `CLAUDE_PLUGIN_ROOT` 未定義的錯誤）。以 `claude mcp list` 為準——出現 `plugin:gputw:gputw … ✔ Connected` 就是正常。
 
-## 工具總表（18 個）
+## 工具總表（22 個）
 
 | 工具 | 標註 | 對應端點 | 需要 scope |
 |---|---|---|---|
 | `list-gpus` | read | `GET /gpus/active` | 無（公開） |
-| `list-available-nodes` | read | `GET /nodes/available` | `catalog:read` |
+| `list-available-nodes` | read | `GET /nodes/available`（含 `fastVault`） | `catalog:read` |
 | `list-templates` | read | `GET /templates` | 無（公開） |
 | `get-deploy-options` | read | `GET /config/deploy` | 無（公開） |
 | `list-instances` | read | `GET /instances` | `instances:read` |
@@ -86,10 +86,14 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 | `get-instance-resources` | read | `GET /instances/{id}/resources` | `instances:read` |
 | `get-instance-logs` | read | `GET /instances/{id}/logs` | `instances:read` |
 | `get-instance-events` | read | `GET /instances/{id}/events` | `instances:read` |
-| `create-instance` | write | `POST /instances/create` | `instances:create` |
+| `get-instance-metrics` | read | `GET /instances/{id}/metrics?range=` | `instances:read` |
+| `create-instance` | write | `POST /instances/create`（可帶 `name`、`autoStopHours` / `autoStopAt`） | `instances:create` |
+| `set-instance-auto-stop` | write | `PATCH /instances/{id}/auto-stop` | `instances:manage` |
+| `rename-instance` | write | `PATCH /instances/{id}/name` | `instances:manage` |
 | `stop-instance` | write | `POST /instances/stop` | `instances:manage` |
 | `delete-instance` | **destructive** | `POST /instances/delete` | `instances:manage` |
 | `restart-instance` | write | `POST /instances/{id}/restart` | `instances:manage` |
+| `delete-stopped-instances` | **destructive** | `POST /instances/delete-stopped` | `instances:manage` |
 | `list-vault` | read | `GET /vault/list` | `vault:read` |
 | `get-vault-stats` | read | `GET /vault/stats` | `vault:read` |
 | `upload-to-vault` | write | 分段上傳流程 | `vault:write` |
@@ -104,7 +108,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 1. **部署順序不變**：`list-gpus` → `list-available-nodes`（帶第一步的 `id` 當 `catalogId`）→ `list-templates`（比對 `architectures` 與機器 `arch`）→ `create-instance`（帶第二步的機器 `id` 當 `nodeId`）。
 2. **等待用 `get-instance-status`**，每 5 秒一次並設整體逾時；**不要**用 `list-instances` 輪詢。三種結束：`RUNNING` / `FAILED` / `INSUFFICIENT_FUNDS`。
 3. **`get-instance-resources` 先看 `usage.source`**。`none` = 沒有遙測、所有指標是 `null`——**不是閒置**。
-4. **結束一定關機**：`stop-instance`（可能再用）或 `delete-instance`（不再需要）。`RUNNING` 就在扣點數。
+4. **結束一定關機**：`stop-instance`（可能再用）或 `delete-instance`（不再需要）。`RUNNING` 就在扣點數。部署時建議 `create-instance` 帶 `autoStopHours`（或之後 `set-instance-auto-stop`）當安全網。
 5. **`exec-in-instance` 的 `command` 是 argv 陣列**，中間沒有 shell；要管線就 `["sh","-c","…"]`。它是 root 且留稽核紀錄。
 6. **`stop-instance` 與 `delete-instance` 都標記為 destructive**，兩者都會摧毀 `/workspace`。先跟使用者確認；要保留的東西應該已經在 `/vault`。
 7. **工具回傳的是投影過的欄位**（目錄一筆原始紀錄約 50 個欄位，全丟給模型會吃掉上下文）。要完整紀錄請直接打 REST API。

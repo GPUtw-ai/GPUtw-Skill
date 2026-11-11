@@ -22,13 +22,13 @@ function pick(src: unknown, keys: readonly string[]): Rec {
 const GPU_KEYS = [
   'id', 'name', 'architecture', 'vramGb', 'hourlyPrice', 'liveRentablePrice', 'offers',
   'demandStatus', 'availability', 'totalGpus', 'availableGpus', 'rentalMode', 'contactEmail',
-  'cardCount', 'fp16Tflops', 'idealFor',
+  'cardCount', 'fp16Tflops', 'idealFor', 'linkGroupSize',
 ] as const;
 
 const NODE_KEYS = [
   'id', 'hostname', 'arch', 'gpuModel', 'totalGpus', 'usedGpus', 'availableGpus', 'vramGb',
   'cpuCores', 'rentableRamGb', 'rentableStorageGb', 'cudaVersion', 'nvidiaDriverVersion',
-  'hourlyRate', 'queueDepth', 'catalogId',
+  'hourlyRate', 'queueDepth', 'catalogId', 'fastVault',
 ] as const;
 
 const TEMPLATE_KEYS = [
@@ -37,9 +37,10 @@ const TEMPLATE_KEYS = [
 ] as const;
 
 const INSTANCE_KEYS = [
-  'id', 'status', 'deployPhase', 'nodeId', 'template', 'isByoImage', 'gpuCount', 'cpuCores',
+  'id', 'name', 'status', 'deployPhase', 'nodeId', 'template', 'isByoImage', 'gpuCount', 'cpuCores',
   'ramGb', 'diskSizeGb', 'shmSizeGb', 'bandwidthMbps', 'hourlyRate', 'computeHourlyRate',
   'extraPortFee', 'allowedPorts', 'webUiEnabled', 'webUiPort', 'createdAt', 'hasFailureLog',
+  'autoStopAt', 'maintenanceSince', 'diskUsedGb', 'diskLimitGb', 'diskUsageAt',
 ] as const;
 
 const NODE_SUMMARY_KEYS = ['id', 'hostname', 'gpuModel', 'arch', 'cudaVersion'] as const;

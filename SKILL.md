@@ -8,7 +8,7 @@ description: >
   Use when the user mentions GPUtw, gputw.ai, renting a GPU in Taiwan, /vault, or a gputw_live_ API key.
 license: MIT
 metadata:
-  version: "1.2.0"
+  version: "1.3.0"
   homepage: https://github.com/GPUtw-ai/GPUtw-Skill
   platforms: [claude-code, codex-cli, cursor, github-copilot, gemini-cli]
 ---
@@ -129,7 +129,7 @@ metadata:
 | 點數、帳務、團隊、通知、支援 | [09](./guides/09-account-billing-teams.md) |
 | 錯誤碼、症狀 → 原因 | [10](./guides/10-errors-and-troubleshooting.md) |
 | 端到端流程、安全關機檢查表 | [11](./guides/11-workflows.md) |
-| MCP 伺服器：安裝、18 個工具、工具 vs curl | [12](./guides/12-mcp.md) |
+| MCP 伺服器：安裝、22 個工具、工具 vs curl | [12](./guides/12-mcp.md) |
 | 語言規範 | [python](./guides/lang-standards/python.md) · [nodejs](./guides/lang-standards/nodejs.md) · [shell](./guides/lang-standards/shell.md) |
 
 ### ⚠️ AI 注意事項（不可做的事）
@@ -245,7 +245,7 @@ User-Agent: my-automation/1.0                          (required)
 - **references/** — [`endpoints.md`](./references/endpoints.md)（唯一可引用的端點清單）、[`docs-site.md`](./references/docs-site.md)（官方文件即時 URL）、[`README.md`](./references/README.md)
 - **scripts/** — [`gputw_client.py`](./scripts/gputw_client.py)（stdlib 客戶端；可讀可跑）、[`examples/`](./scripts/examples/)（deploy_and_wait、upload_to_vault、download_hf_model、gpu_util_check）
 - **commands/** — Claude Code 斜線指令（`/gputw-deploy`、`/gputw-monitor`、`/gputw-vault`、`/gputw-debug`），選用
-- **mcp/** — 官方 MCP 伺服器（`@gputw/mcp-server`，18 個工具）；安裝與工具總表見 [12](./guides/12-mcp.md)
+- **mcp/** — 官方 MCP 伺服器（`@gputw/mcp-server`，22 個工具）；安裝與工具總表見 [12](./guides/12-mcp.md)
 
 ### 即時查閱機制
 

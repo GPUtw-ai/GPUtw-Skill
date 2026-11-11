@@ -2,7 +2,7 @@
 
 Official [MCP](https://modelcontextprotocol.io) server for the **GPUtw** GPU cloud ([gputw.ai](https://gputw.ai)) — deploy and manage GPU instances, read live utilisation and logs, and move models into `/vault`, from any MCP client.
 
-> **Stable** (`1.1.0`). Ships as part of the [GPUtw Skill](https://github.com/GPUtw-ai/GPUtw-Skill), which also carries the integration guides the tools assume.
+> **Stable** (`1.2.0`). Ships as part of the [GPUtw Skill](https://github.com/GPUtw-ai/GPUtw-Skill), which also carries the integration guides the tools assume.
 
 ## Install
 
@@ -58,8 +58,8 @@ Get a key from the GPUtw dashboard → **API Keys**. Use the narrowest preset th
 ## Tools
 
 **Catalogue** — `list-gpus`, `list-available-nodes`, `list-templates`, `get-deploy-options`
-**Instances** — `create-instance`, `stop-instance`, `delete-instance`, `restart-instance`
-**Live state** — `get-instance-status`, `get-instance-resources`, `get-instance-logs`, `get-instance-events`
+**Instances** — `create-instance` (optional `name`, `autoStopHours` / `autoStopAt`), `set-instance-auto-stop`, `rename-instance`, `stop-instance`, `delete-instance`, `delete-stopped-instances`, `restart-instance`
+**Live state** — `get-instance-status`, `get-instance-resources`, `get-instance-metrics`, `get-instance-logs`, `get-instance-events`
 **Vault** — `list-vault`, `get-vault-stats`, `upload-to-vault`, `download-model-to-vault`, `list-vault-downloads`
 **Opt-in** — `exec-in-instance` (root shell; needs `GPUTW_MCP_ALLOW_EXEC=1` *and* the `instances:exec` scope)
 
@@ -69,7 +69,9 @@ Not yet covered (use the REST API): ports and exposures, API-key management, bil
 
 ## Notes worth knowing
 
-- **Instances bill while `RUNNING`.** Always finish with `stop-instance` or `delete-instance`.
+- **Instances bill while `RUNNING`.** Always finish with `stop-instance` or `delete-instance`, and set `autoStopHours` on create as a safety net.
+- **Prefer `fastVault: true` machines** when a job loads large files from `/vault` on every start.
+- **A server-side download can show `failed` while it retries itself** (`error` mentions retrying / resuming); `download-model-to-vault` keeps waiting through that.
 - **Poll with `get-instance-status`,** not `list-instances` — it is the small, cheap read built for looping.
 - **Read `usage.source` on `get-instance-resources` before trusting a number.** `none` means there is no telemetry and every metric is `null`; that is not the same as an idle GPU.
 - **Responses are projected.** A catalogue record carries ~50 fields; the tools return the decision-relevant subset so the model's context is not spent on marketing copy.

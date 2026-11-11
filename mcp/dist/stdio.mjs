@@ -21661,7 +21661,8 @@ var GPU_KEYS = [
   "contactEmail",
   "cardCount",
   "fp16Tflops",
-  "idealFor"
+  "idealFor",
+  "linkGroupSize"
 ];
 var NODE_KEYS = [
   "id",
@@ -21679,7 +21680,8 @@ var NODE_KEYS = [
   "nvidiaDriverVersion",
   "hourlyRate",
   "queueDepth",
-  "catalogId"
+  "catalogId",
+  "fastVault"
 ];
 var TEMPLATE_KEYS = [
   "id",
@@ -21695,6 +21697,7 @@ var TEMPLATE_KEYS = [
 ];
 var INSTANCE_KEYS = [
   "id",
+  "name",
   "status",
   "deployPhase",
   "nodeId",
@@ -21713,7 +21716,12 @@ var INSTANCE_KEYS = [
   "webUiEnabled",
   "webUiPort",
   "createdAt",
-  "hasFailureLog"
+  "hasFailureLog",
+  "autoStopAt",
+  "maintenanceSince",
+  "diskUsedGb",
+  "diskLimitGb",
+  "diskUsageAt"
 ];
 var NODE_SUMMARY_KEYS = ["id", "hostname", "gpuModel", "arch", "cudaVersion"];
 function projectGpu(g) {
@@ -21789,7 +21797,7 @@ function registerCatalogTools(server, rt) {
     "list-available-nodes",
     {
       title: "List available machines",
-      description: "List machines currently rentable for one GPU model. Pass the `id` from list-gpus as catalogId. Use a returned machine `id` as the nodeId for create-instance. Only one instance may run per machine, so `availableGpus: 0` or a non-zero queueDepth means it is occupied. Check that the machine `arch` (amd64 / arm64) is in the chosen template's architectures. An empty list means no capacity for that model right now. `hostname` is a public label, not a real host.",
+      description: "List machines currently rentable for one GPU model. Pass the `id` from list-gpus as catalogId. Use a returned machine `id` as the nodeId for create-instance. Only one instance may run per machine, so `availableGpus: 0` or a non-zero queueDepth means it is occupied. Check that the machine `arch` (amd64 / arm64) is in the chosen template's architectures. An empty list means no capacity for that model right now. `hostname` is a public label, not a real host. `fastVault: true` machines read and write /vault faster: prefer them when the job loads large files from /vault (models, datasets) on every start.",
       inputSchema: { catalogId: external_exports.string().describe("GPU catalogue entry id, from list-gpus") },
       annotations: READ_ONLY
     },
@@ -21952,7 +21960,10 @@ function registerInstanceTools(server, rt) {
         customImage: customImage.optional().describe("Bring your own image instead of a template"),
         ports: external_exports.array(external_exports.number().int().min(1024).max(65535)).max(20).optional().describe("HTTP ports to open; 2222, 6443 and 9000-9999 are reserved"),
         bandwidthMbps: external_exports.number().int().optional().describe("Must match a get-deploy-options tier"),
-        shmSizeGb: external_exports.number().int().min(1).max(1024).optional()
+        shmSizeGb: external_exports.number().int().min(1).max(1024).optional(),
+        name: external_exports.string().max(40).optional().describe('Display name (default: the next free "GPU N"); a label only, not an idempotency key'),
+        autoStopHours: external_exports.number().positive().max(720).optional().describe("Stop automatically after this many hours (10 minutes to 30 days). Recommended as a safety net"),
+        autoStopAt: external_exports.string().optional().describe("ISO 8601 time with offset to stop at; alternative to autoStopHours")
       },
       annotations: WRITE
     },
@@ -21966,13 +21977,17 @@ function registerInstanceTools(server, rt) {
           "Provide exactly one of templateId, template or customImage. Nothing was deployed."
         );
       }
+      if (args.autoStopHours !== void 0 && args.autoStopAt !== void 0) {
+        return ok({}, "Provide autoStopHours or autoStopAt, not both. Nothing was deployed.");
+      }
       const inst = await rt.client.request("/instances/create", {
         method: "POST",
         body: args
       });
+      const timer = inst["autoStopAt"] ? ` It stops automatically at ${String(inst["autoStopAt"])} (/workspace is erased then).` : " No auto-stop timer is set - consider set-instance-auto-stop as a safety net.";
       return ok(
         projectInstance(inst),
-        `Deploying instance ${String(inst["id"])} at $${String(inst["hourlyRate"])}/hr. Poll get-instance-status until RUNNING, and stop or delete it when finished - it bills while running.`
+        `Deploying instance ${String(inst["id"])} at $${String(inst["hourlyRate"])}/hr. Poll get-instance-status until RUNNING, and stop or delete it when finished - it bills while running.` + timer
       );
     })
   );
@@ -22033,6 +22048,84 @@ function registerInstanceTools(server, rt) {
         body
       });
       return ok(projectInstance(d));
+    })
+  );
+  server.registerTool(
+    "set-instance-auto-stop",
+    {
+      title: "Set, extend or cancel the auto-stop timer",
+      description: "Server-side timer that STOPS a RUNNING or DEPLOYING instance at a set time, even if this session is gone. Requires instances:manage. Give exactly one of: autoStopAt (ISO 8601 with offset, 10 minutes to 30 days ahead), extendHours (push the current deadline out), or cancel=true. At the deadline the instance is stopped like stop-instance: /workspace is erased and only /vault is kept - tell the user that.",
+      inputSchema: {
+        instanceId: external_exports.string(),
+        autoStopAt: external_exports.string().optional().describe("ISO 8601 time with offset, e.g. 2026-11-20T18:00:00+08:00"),
+        extendHours: external_exports.number().positive().max(720).optional(),
+        cancel: external_exports.boolean().optional().describe("Remove the timer")
+      },
+      annotations: WRITE
+    },
+    async ({ instanceId, autoStopAt, extendHours, cancel }) => guard(async () => {
+      const given = [autoStopAt, extendHours, cancel ? true : void 0].filter((v) => v !== void 0);
+      if (given.length !== 1) {
+        return ok({}, "Provide exactly one of autoStopAt, extendHours or cancel=true. Nothing was changed.");
+      }
+      const body = cancel ? { autoStopAt: null } : extendHours !== void 0 ? { extendHours } : { autoStopAt };
+      const d = await rt.client.request(`/instances/${instanceId}/auto-stop`, {
+        method: "PATCH",
+        body
+      });
+      return ok(
+        projectInstance(d),
+        d["autoStopAt"] ? `Auto-stop at ${String(d["autoStopAt"])}.` : "Auto-stop timer cancelled."
+      );
+    })
+  );
+  server.registerTool(
+    "rename-instance",
+    {
+      title: "Rename instance",
+      description: 'Set the display name of an instance (up to 40 characters) so several similar machines are easy to tell apart. An empty name resets it to the next free "GPU N". Requires instances:manage. Cosmetic only: it does not change SSH (still pod-<id>) or the instance id.',
+      inputSchema: { instanceId: external_exports.string(), name: external_exports.string().max(40) },
+      annotations: IDEMPOTENT_WRITE
+    },
+    async ({ instanceId, name }) => guard(async () => {
+      const d = await rt.client.request(`/instances/${instanceId}/name`, { method: "PATCH", body: { name } });
+      return ok(projectInstance(d));
+    })
+  );
+  server.registerTool(
+    "get-instance-metrics",
+    {
+      title: "Get instance metrics history",
+      description: 'Time series of cpu (%), ram (bytes), gpu (%), vram (MiB), netIn/netOut (Mbps) over range 1h (about every 15 s), 6h (every minute) or 24h (every 5 minutes). Use it for trends such as "has the GPU done anything in the last hour"; use get-instance-resources for the current value. An empty list or gpu=null means no telemetry, which is NOT the same as idle.',
+      inputSchema: { instanceId: external_exports.string(), range: external_exports.enum(["1h", "6h", "24h"]).optional() },
+      annotations: READ_ONLY
+    },
+    async ({ instanceId, range }) => guard(async () => {
+      const pts = await rt.client.request(
+        `/instances/${instanceId}/metrics?range=${range ?? "1h"}`
+      );
+      if (!Array.isArray(pts) || pts.length === 0) {
+        return ok([], "No metrics for this range (no telemetry yet) - this does not mean idle.");
+      }
+      const gpu = pts.map((p) => p["gpu"]).filter((v) => typeof v === "number");
+      const summary = gpu.length ? `${pts.length} points; GPU avg ${(gpu.reduce((a, b) => a + b, 0) / gpu.length).toFixed(0)}%, max ${Math.max(...gpu)}%.` : `${pts.length} points; no GPU telemetry in this range.`;
+      return ok(pts, summary);
+    })
+  );
+  server.registerTool(
+    "delete-stopped-instances",
+    {
+      title: "Delete stopped and failed instances",
+      description: "Permanently delete STOPPED and FAILED instances in one call (at most 100, oldest first), or only the instanceIds given. Requires instances:manage. RUNNING and DEPLOYING instances are never touched - they come back in skipped with reason NOT_STOPPED. Stopped instances still count toward the instance limit, so this frees room. /vault is unaffected. Confirm first.",
+      inputSchema: { instanceIds: external_exports.array(external_exports.string()).max(100).optional() },
+      annotations: DESTRUCTIVE
+    },
+    async ({ instanceIds }) => guard(async () => {
+      const d = await rt.client.request(
+        "/instances/delete-stopped",
+        { method: "POST", body: instanceIds ? { instanceIds } : {} }
+      );
+      return ok(d, `Deleted ${d.deleted?.length ?? 0}; skipped ${d.skipped?.length ?? 0}.`);
     })
   );
   if (rt.allowExec) {
@@ -22199,6 +22292,11 @@ function registerVaultTools(server, rt) {
             `Downloaded to ${String(d["targetPath"])}.`
           );
         }
+        const err = String(d["error"] ?? "");
+        if (status === "failed" && /retrying automatically|resuming/i.test(err)) {
+          await sleep(POLL_MS);
+          continue;
+        }
         if (status === "failed" || status === "canceled") {
           return ok(
             d,
@@ -22246,7 +22344,7 @@ function registerTools(server, rt) {
 }
 
 // src/server.ts
-var VERSION = "1.1.0";
+var VERSION = "1.2.0";
 var USER_AGENT = `gputw-mcp/${VERSION}`;
 function buildServer(opts = {}) {
   const client = new GputwClient({

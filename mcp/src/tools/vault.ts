@@ -177,6 +177,13 @@ export function registerVaultTools(server: McpServer, rt: ToolRuntime): void {
               `Downloaded to ${String(d['targetPath'])}.`
             );
           }
+          const err = String(d['error'] ?? '');
+          if (status === 'failed' && /retrying automatically|resuming/i.test(err)) {
+            // The server retries a dropped transfer by itself and the same id comes back to
+            // pending/downloading - a transient "failed" is not the end of this download.
+            await sleep(POLL_MS);
+            continue;
+          }
           if (status === 'failed' || status === 'canceled') {
             return ok(
               d,

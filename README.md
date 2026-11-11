@@ -16,7 +16,7 @@ Tell Claude Code, Codex CLI, Cursor, Copilot or Gemini CLI what you want in plai
 /plugin install gputw@gputw
 ```
 
-**MCP server only (18 tools)**
+**MCP server only (22 tools)**
 
 ```bash
 claude mcp add gputw -s user -e GPUTW_API_KEY=gputw_live_xxx -- npx -y @gputw/mcp-server@latest
@@ -31,7 +31,7 @@ The knowledge base is written in Traditional Chinese, but the assistant always a
 
 [English](#gputw-skill-rent-gpus-in-taiwan-from-your-ai-coding-agent) ｜ **繁體中文**
 
-> **V1.2.0** ｜ GPUtw.ai（ https://gputw.ai ）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。**現在含官方 MCP 伺服器（18 個工具）**。
+> **V1.3.0** ｜ GPUtw.ai（ https://gputw.ai ）官方 AI 知識套件 ｜ 讓 Claude Code、OpenAI Codex CLI、Cursor、GitHub Copilot、Google Gemini CLI 直接看懂 GPUtw 的 REST API 與官方文件，用自然語言部署 GPU、監控、搬資料、除錯。**現在含官方 MCP 伺服器（18 個工具）**。
 
 ---
 
@@ -104,12 +104,12 @@ git clone https://github.com/GPUtw-ai/GPUtw-Skill.git .claude/skills/gputw
 ### 版本固定
 
 ```bash
-cd ~/.claude/skills/gputw && git tag -l && git checkout v1.2.0
+cd ~/.claude/skills/gputw && git tag -l && git checkout v1.3.0
 ```
 
 ## MCP 伺服器
 
-除了知識，本 repo 也提供官方 **MCP 伺服器**（`mcp/`，18 個工具），讓助理直接以型別化的工具呼叫操作 GPUtw，不必組 curl。
+除了知識，本 repo 也提供官方 **MCP 伺服器**（`mcp/`，22 個工具），讓助理直接以型別化的工具呼叫操作 GPUtw，不必組 curl。
 
 ```bash
 # 外掛（建議）— 一次拿到 Skill + MCP 工具，金鑰存在安全儲存區

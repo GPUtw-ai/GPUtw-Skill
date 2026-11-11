@@ -34,7 +34,9 @@ export function registerCatalogTools(server: McpServer, rt: ToolRuntime): void {
         'Use a returned machine `id` as the nodeId for create-instance. Only one instance may run per ' +
         'machine, so `availableGpus: 0` or a non-zero queueDepth means it is occupied. Check that the ' +
         'machine `arch` (amd64 / arm64) is in the chosen template\'s architectures. An empty list means ' +
-        'no capacity for that model right now. `hostname` is a public label, not a real host.',
+        'no capacity for that model right now. `hostname` is a public label, not a real host. ' +
+        '`fastVault: true` machines read and write /vault faster: prefer them when the job loads large ' +
+        'files from /vault (models, datasets) on every start.',
       inputSchema: { catalogId: z.string().describe('GPU catalogue entry id, from list-gpus') },
       annotations: READ_ONLY,
     },

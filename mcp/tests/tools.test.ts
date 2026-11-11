@@ -11,11 +11,11 @@ describe('tool registration', () => {
     const names = (await client.listTools()).tools.map((t) => t.name).sort();
     expect(names).toEqual(
       [
-        'create-instance', 'delete-instance', 'download-model-to-vault', 'get-deploy-options',
-        'get-instance-events', 'get-instance-logs', 'get-instance-resources', 'get-instance-status',
-        'get-vault-stats', 'list-available-nodes', 'list-gpus', 'list-instances',
-        'list-templates', 'list-vault', 'list-vault-downloads', 'restart-instance',
-        'stop-instance', 'upload-to-vault',
+        'create-instance', 'delete-instance', 'delete-stopped-instances', 'download-model-to-vault',
+        'get-deploy-options', 'get-instance-events', 'get-instance-logs', 'get-instance-metrics',
+        'get-instance-resources', 'get-instance-status', 'get-vault-stats', 'list-available-nodes',
+        'list-gpus', 'list-instances', 'list-templates', 'list-vault', 'list-vault-downloads',
+        'rename-instance', 'restart-instance', 'set-instance-auto-stop', 'stop-instance', 'upload-to-vault',
       ].sort()
     );
     expect(names).not.toContain('exec-in-instance');
@@ -35,6 +35,8 @@ describe('tool registration', () => {
     expect(byName.get('create-instance')).toMatchObject({ readOnlyHint: false });
     expect(byName.get('delete-instance')).toMatchObject({ readOnlyHint: false, destructiveHint: true });
     expect(byName.get('stop-instance')).toMatchObject({ idempotentHint: true, destructiveHint: true });
+    expect(byName.get('delete-stopped-instances')).toMatchObject({ destructiveHint: true });
+    expect(byName.get('get-instance-metrics')).toMatchObject({ readOnlyHint: true });
   });
 
   it('gives every tool a description, so a client can route without guessing', async () => {
@@ -211,6 +213,77 @@ describe('instance tools', () => {
   });
 });
 
+describe('1.2 instance tools', () => {
+  it('passes name and autoStopHours through on create and mentions the timer', async () => {
+    const { fetchImpl, calls } = stubFetch([
+      { match: '/instances/create', method: 'POST', data: { id: 'i1', name: 'train', hourlyRate: 0.4, autoStopAt: '2026-11-12T10:00:00.000Z' } },
+    ]);
+    const { client } = await connect({ fetchImpl });
+    const text = textOf(await client.callTool({
+      name: 'create-instance',
+      arguments: { nodeId: 'n1', templateId: 't1', name: 'train', autoStopHours: 4 },
+    }));
+    expect(JSON.parse(calls[0]!.body!)).toMatchObject({ name: 'train', autoStopHours: 4 });
+    expect(text).toContain('stops automatically');
+    expect(text).toContain('"name": "train"');
+  });
+
+  it('refuses autoStopHours together with autoStopAt', async () => {
+    const { fetchImpl, calls } = stubFetch([]);
+    const { client } = await connect({ fetchImpl });
+    const text = textOf(await client.callTool({
+      name: 'create-instance',
+      arguments: { nodeId: 'n1', templateId: 't1', autoStopHours: 1, autoStopAt: '2030-01-01T00:00:00Z' },
+    }));
+    expect(text).toContain('not both');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('maps cancel / extend / set onto the auto-stop body', async () => {
+    const { fetchImpl, calls } = stubFetch([{ match: '/auto-stop', method: 'PATCH', data: { id: 'i1', autoStopAt: null } }]);
+    const { client } = await connect({ fetchImpl });
+    expect(textOf(await client.callTool({ name: 'set-instance-auto-stop', arguments: { instanceId: 'i1', cancel: true } }))).toContain('cancelled');
+    await client.callTool({ name: 'set-instance-auto-stop', arguments: { instanceId: 'i1', extendHours: 2 } });
+    expect(calls.map((c) => JSON.parse(c.body!))).toEqual([{ autoStopAt: null }, { extendHours: 2 }]);
+    expect(textOf(await client.callTool({ name: 'set-instance-auto-stop', arguments: { instanceId: 'i1' } }))).toContain('exactly one');
+    expect(calls).toHaveLength(2);
+  });
+
+  it('renames with PATCH /instances/{id}/name', async () => {
+    const { fetchImpl, calls } = stubFetch([{ match: '/instances/i1/name', method: 'PATCH', data: { id: 'i1', name: 'GPU 3' } }]);
+    const { client } = await connect({ fetchImpl });
+    await client.callTool({ name: 'rename-instance', arguments: { instanceId: 'i1', name: '' } });
+    expect(calls[0]).toMatchObject({ method: 'PATCH' });
+    expect(JSON.parse(calls[0]!.body!)).toEqual({ name: '' });
+  });
+
+  it('summarises metrics and does not call an empty series idle', async () => {
+    const { fetchImpl, calls } = stubFetch([{ match: '/instances/i1/metrics', seq: [
+      [{ time: '10:00', gpu: 50 }, { time: '10:01', gpu: 100 }],
+      [],
+    ] }]);
+    const { client } = await connect({ fetchImpl });
+    expect(textOf(await client.callTool({ name: 'get-instance-metrics', arguments: { instanceId: 'i1', range: '6h' } }))).toContain('GPU avg 75%');
+    expect(calls[0]!.url).toContain('range=6h');
+    expect(textOf(await client.callTool({ name: 'get-instance-metrics', arguments: { instanceId: 'i1' } }))).toContain('does not mean idle');
+  });
+
+  it('deletes stopped instances and reports what was skipped', async () => {
+    const { fetchImpl, calls } = stubFetch([{ match: '/instances/delete-stopped', method: 'POST', data: { deleted: ['a'], skipped: [{ id: 'b', reason: 'NOT_STOPPED' }] } }]);
+    const { client } = await connect({ fetchImpl });
+    expect(textOf(await client.callTool({ name: 'delete-stopped-instances', arguments: {} }))).toContain('Deleted 1; skipped 1');
+    expect(JSON.parse(calls[0]!.body!)).toEqual({});
+  });
+
+  it('keeps fastVault on machines and the new instance fields', async () => {
+    const { fetchImpl } = stubFetch([{ match: '/nodes/available', data: [{ id: 'n1', fastVault: true, secretField: 'x' }] }]);
+    const { client } = await connect({ fetchImpl });
+    const text = textOf(await client.callTool({ name: 'list-available-nodes', arguments: { catalogId: 'c1' } }));
+    expect(text).toContain('fastVault');
+    expect(text).not.toContain('secretField');
+  });
+});
+
 describe('vault tools', () => {
   it('projects vault listings and counts them', async () => {
     const { fetchImpl } = stubFetch([
@@ -256,6 +329,19 @@ describe('vault tools', () => {
     }))).toContain('Started download d2');
     expect(calls).toHaveLength(1);
   });
+
+  it('keeps polling through a download the server is retrying by itself', async () => {
+    const { fetchImpl } = stubFetch([
+      { match: '/vault/downloads', method: 'POST', data: { id: 'd4' } },
+      { match: '/vault/downloads/d4', seq: [
+        { status: 'failed', error: 'Download error: socket hang up — retrying automatically (1/5)' },
+        { status: 'completed', targetPath: 'models/vae/y.safetensors' },
+      ] },
+    ]);
+    const { client } = await connect({ fetchImpl });
+    const text = textOf(await client.callTool({ name: 'download-model-to-vault', arguments: { source: 'hf:a/b:c', targetPath: 'models/vae' } }));
+    expect(text).toContain('Downloaded to models/vae/y.safetensors');
+  }, 10_000);
 
   it('surfaces a gated-repo failure with the token hint', async () => {
     const { fetchImpl } = stubFetch([

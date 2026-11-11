@@ -29,6 +29,8 @@ export interface StubRoute {
   data?: unknown;
   /** Returned verbatim - use for non-envelope bodies (Cloudflare HTML) and error envelopes. */
   raw?: string;
+  /** Successive payloads for repeated calls (the last one repeats); overrides `data`. */
+  seq?: unknown[];
 }
 
 export function stubFetch(routes: StubRoute[]) {
@@ -49,7 +51,8 @@ export function stubFetch(routes: StubRoute[]) {
       return new Response(JSON.stringify({ success: false, data: null, error: `no stub for ${method} ${url}` }), { status: 599 });
     }
     const status = route.status ?? 200;
-    const body = route.raw ?? JSON.stringify({ success: status < 400, data: route.data ?? null, error: null });
+    const data = route.seq ? route.seq.length > 1 ? route.seq.shift() : route.seq[0] : route.data;
+    const body = route.raw ?? JSON.stringify({ success: status < 400, data: data ?? null, error: null });
     return new Response(body, { status });
   }) as unknown as typeof globalThis.fetch;
   return { fetchImpl, calls };

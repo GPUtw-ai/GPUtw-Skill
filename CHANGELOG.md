@@ -68,3 +68,15 @@
 - **時間序列指標**：收錄 `GET /instances/{id}/metrics?range=1h|6h|24h`
 - **伺服器端下載自動續傳**：中途斷線自動重試 5 次、服務重啟後自動接續；重試期間同一個 `id` 會短暫顯示 `failed`（`error` 含 `retrying automatically` / `resuming`），`guides/08` 的輪詢範例已處理
 - `SKILL.md` 快速參考的速率限制更新為與 `guides/10` 一致的現行額度
+
+## V1.3.0 — 2026-11-12
+
+MCP 伺服器 **1.2.0**（`@gputw/mcp-server`）：跟上 1.2.0 文件收錄的 API。
+
+- 新工具（共 22 個，另加預設關閉的 `exec-in-instance`）：`set-instance-auto-stop`、`rename-instance`、`get-instance-metrics`、`delete-stopped-instances`（destructive）
+- `create-instance` 可帶 `name`、`autoStopHours` ｜ `autoStopAt`；沒設計時器時回覆會建議設定
+- 回應投影新增欄位：機器 `fastVault`、目錄 `linkGroupSize`、執行個體 `name`, `autoStopAt`, `maintenanceSince`, `diskUsedGb`, `diskLimitGb`, `diskUsageAt`
+- `list-available-nodes` 說明：從 `/vault` 讀大量資料的工作優先挑 `fastVault: true`
+- `download-model-to-vault`：伺服器自動重試期間的短暫 `failed`（`error` 含 retrying / resuming）會繼續等，不再當成失敗
+- 68 個離線測試（新增 8 個）
+- 公開內容守門腳本改為以雜湊比對（`scripts/validate/denylist.sha256`），腳本本身不再列出內部名稱
