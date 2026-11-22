@@ -21486,6 +21486,9 @@ What to do: ${hint}` : head;
       return "the resource belongs to a different account, or the key cannot reach this route.";
     }
     if (this.status === 402) {
+      if (/Your (team's shared )?balance (is|has run out)|team owner to top up/i.test(d)) {
+        return "the account balance is at or below NT$0, so nothing that costs money can start (deploy, restart, Vault uploads and URL imports, the model API) until it is topped up in the dashboard - the API cannot take payment, so do not retry. Reading, stopping and deleting still work. A team member must ask the team owner to top up.";
+      }
       return "insufficient credits: deploying requires enough balance for one hour of EVERY running instance. Top up in the dashboard (the API cannot take payment).";
     }
     if (this.status === 404) {

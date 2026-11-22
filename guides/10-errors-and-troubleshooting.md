@@ -43,6 +43,7 @@ HTTP 回應
 | `401` | `Invalid or expired API key` / `Invalid or expired token` | 金鑰錯、撤銷、過期 | 換發 |
 | `401` | `API keys must be sent in the Authorization header, not the query string` | 金鑰放在 `?token=` | 移到 header |
 | `402` | `Insufficient credits to cover one hour of your total running instances` | | 儲值 |
+| `402` | `Your balance is NT$… Top up to continue.`（`code`: `INSUFFICIENT_BALANCE`） | 餘額 ≤ NT$0：任何會產生費用的動作（部署、重新啟動、Vault 上傳與網址匯入、模型 API）都無法開始；查詢、停止、刪除不受影響 | 控制台儲值，不要重試；團隊成員請團隊擁有者儲值 |
 | `403` | `API key missing required scope: …` | | 更新 scopes |
 | `403` | `This endpoint is not available to API keys. Use a browser session.` | 路由不對金鑰開放 | 控制台 |
 | `403` | `Account is disabled` | | 聯絡支援 |

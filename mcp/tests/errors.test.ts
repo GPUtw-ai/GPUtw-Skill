@@ -32,6 +32,15 @@ describe('GputwApiError.toAgentMessage', () => {
     expect(msg).toContain('one hour of EVERY running instance');
   });
 
+  it('explains the balance floor on a 402 at or below NT$0, and says not to retry', () => {
+    const msg = new GputwApiError(402, 'Your balance is NT$-0.03. Top up to continue.', true).toAgentMessage();
+    expect(msg).toContain('NT$-0.03');
+    expect(msg).toContain('at or below NT$0');
+    expect(msg).toContain('do not retry');
+    const team = new GputwApiError(402, "Your team's shared balance has run out. Ask the team owner to top up to continue.", true).toAgentMessage();
+    expect(team).toContain('team owner');
+  });
+
   it('tells the caller to re-pick a machine on 409', () => {
     expect(new GputwApiError(409, 'This node already has an active instance', true).toAgentMessage()).toContain('taken by someone else');
   });
