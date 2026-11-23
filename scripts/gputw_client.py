@@ -27,6 +27,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -368,6 +369,10 @@ def main(argv=None):
             print("hint: update the key's scopes in Dashboard -> API Keys, or issue a new key", file=sys.stderr)
         elif "not available to API keys" in msg:
             print("hint: this route is browser-session only - do it in the dashboard", file=sys.stderr)
+        elif e.status == 402 and re.search(r"Your (team's shared )?balance (is|has run out)|team owner to top up", msg):
+            print("hint: the balance is at or below NT$0 - nothing that costs money can start (deploy, restart, "
+                  "vault uploads/imports, model API) until it is topped up in the dashboard; do not retry. "
+                  "Reading, stopping and deleting still work.", file=sys.stderr)
         elif e.status == 402:
             print("hint: top up in the dashboard - deploying needs one hour of credit for every running instance",
                   file=sys.stderr)
